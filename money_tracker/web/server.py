@@ -1,0 +1,126 @@
+# -*- coding: utf-8 -*-
+"""Веб-версия трекера на Litestar."""
+
+import tempfile
+from datetime import date
+from pathlib import Path
+from typing import Annotated
+
+from litestar import Litestar, Request, get, post
+from litestar.params import PathParameter
+from litestar.plugins.jinja import JinjaTemplateEngine
+from litestar.response import Redirect, Response, Template
+from litestar.static_files import create_static_files_router
+from litestar.template.config import TemplateConfig
+
+from ..errors import TrackerError
+from ..logic import TrackerService
+from ..records import CATEGORIES
+from ..repository import create_repository
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def create_app(repository=None):
+    """Создать приложение с указанным или выбранным хранилищем."""
+    service = TrackerService(repository or create_repository())
+
+    def page(request, error="", status_code=200, form=None):
+        category = request.query_params.get("category", "")
+        search = request.query_params.get("search", "")
+        expenses = service.list_expenses(category or None, search)
+        summary = service.summary()
+        daily = service.daily_totals(7)
+        maximum = max((item["sum"] for item in daily), default=0) or 1
+        for item in daily:
+            item["height"] = round(item["sum"] / maximum * 100, 1)
+            item["value_text"] = f"{item['sum']:,.0f}".replace(",", " ")
+        return Template(
+            "index.html",
+            status_code=status_code,
+            context={
+                "expenses": expenses,
+                "summary": summary,
+                "daily": daily,
+                "records": service.records(12),
+                "category": category,
+                "search": search,
+                "error": error,
+                "form": form or {},
+                "categories": CATEGORIES,
+                "today": date.today().strftime("%d.%m.%Y"),
+            },
+        )
+
+    @get("/")
+    async def index(request: Request) -> Template:
+        return page(request)
+
+    @post("/expenses")
+    async def add_expense(request: Request) -> Template | Redirect:
+        form = await request.form()
+        values = {
+            "title": form.get("title", ""),
+            "category": form.get("category", ""),
+            "amount": form.get("amount", ""),
+            "spent_on": form.get("spent_on", ""),
+            "note": form.get("note", ""),
+        }
+        try:
+            service.add_expense(
+                values["title"],
+                values["category"],
+                values["amount"].replace(",", "."),
+                values["spent_on"],
+                values["note"],
+            )
+        except TrackerError as error:
+            return page(request, str(error), status_code=400, form=values)
+        return Redirect("/")
+
+    @post("/expenses/{expense_id:int}/delete")
+    async def delete_expense(
+        expense_id: Annotated[int, PathParameter()],
+    ) -> Redirect:
+        try:
+            service.delete_expense(expense_id)
+        except TrackerError:
+            pass
+        return Redirect("/")
+
+    @get("/export.csv")
+    async def export_csv() -> Response:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as file:
+            path = Path(file.name)
+        try:
+            service.export_csv(path)
+            data = path.read_bytes()
+        finally:
+            path.unlink(missing_ok=True)
+        return Response(
+            content=data,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=expenses.csv"},
+        )
+
+    @get("/health")
+    async def health() -> dict:
+        return {"status": "ok"}
+
+    return Litestar(
+        route_handlers=[
+            index,
+            add_expense,
+            delete_expense,
+            export_csv,
+            health,
+            create_static_files_router(
+                path="/static", directories=[BASE_DIR / "static"]
+            ),
+        ],
+        template_config=TemplateConfig(
+            directory=BASE_DIR / "templates",
+            engine=JinjaTemplateEngine,
+        ),
+        on_shutdown=[service.close],
+    )
