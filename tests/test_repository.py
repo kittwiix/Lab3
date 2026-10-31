@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Тесты хранилища на SQLite: запись, чтение, фильтры и журнал."""
+
 from money_tracker.records import Expense
 
 

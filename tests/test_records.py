@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Тесты модели Expense: проверки полей, формулы и dunder-методы."""
+
 import math
 from datetime import date, timedelta
 

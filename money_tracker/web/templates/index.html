@@ -3,63 +3,111 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Финансовый трекер расходов</title>
+    <title>Кошелёк — финансовый трекер расходов</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<header class="top">
-    <div>
-        <h1>Финансовый трекер расходов</h1>
-        <p class="subtitle">Лабораторная работа № 3, вариант 8</p>
-    </div>
-    <a class="export" href="/export.csv">Скачать CSV</a>
-</header>
-
-<main>
-    <section class="cards">
-        <div class="card">
-            <span class="card-label">Всего расходов</span>
-            <strong>{{ summary.total_text }}</strong>
+<div class="shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <span class="brand-mark">₽</span>
+            <div>
+                <p class="brand-name">Кошелёк</p>
+                <p class="brand-note">учёт личных расходов</p>
+            </div>
         </div>
-        <div class="card">
-            <span class="card-label">Записей</span>
-            <strong>{{ summary.count }}</strong>
-        </div>
-        <div class="card">
-            <span class="card-label">Средний расход</span>
-            <strong>{{ summary.average_text }}</strong>
-        </div>
-    </section>
 
-    <section class="panel">
-        <h2>Новый расход</h2>
-        {% if error %}<div class="error">{{ error }}</div>{% endif %}
-        <form class="expense-form" method="post" action="/expenses">
-            <label>Название
-                <input type="text" name="title" value="{{ form.get('title', '') }}" required>
-            </label>
-            <label>Категория
-                <select name="category">
-                    {% for item in categories %}
-                    <option value="{{ item }}" {% if form.get('category') == item %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>Сумма, руб.
-                <input type="text" name="amount" value="{{ form.get('amount', '') }}" placeholder="1200,00" required>
-            </label>
-            <label>Дата
-                <input type="text" name="spent_on" value="{{ form.get('spent_on', today) }}" required>
-            </label>
-            <label class="wide">Комментарий
-                <input type="text" name="note" value="{{ form.get('note', '') }}">
-            </label>
-            <button type="submit">Добавить</button>
-        </form>
-    </section>
+        <div class="total">
+            <span class="total-cap">Потрачено всего</span>
+            <strong class="total-sum">{{ summary.total_text }}</strong>
+        </div>
 
-    <section class="grid">
-        <div class="panel table-panel">
+        <div class="pair">
+            <div>
+                <span class="pair-cap">Записей</span>
+                <strong class="pair-value">{{ summary.count }}</strong>
+            </div>
+            <div>
+                <span class="pair-cap">Средний расход</span>
+                <strong class="pair-value">{{ summary.average_text }}</strong>
+            </div>
+        </div>
+
+        <p class="side-head">Категории</p>
+        <div class="cats">
+            {% for item in summary.by_category %}
+            <div class="cat">
+                <div class="cat-row">
+                    <span>{{ item.name }}</span>
+                    <span class="cat-sum">{{ item.sum_text }}</span>
+                </div>
+                <div class="cat-track">
+                    <div class="cat-fill" style="width: {{ item.percent }}%"></div>
+                </div>
+                <span class="cat-note">{{ item.percent|string|replace('.', ',') }}% от всех трат</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <a class="export" href="/export.csv">Скачать CSV</a>
+        <p class="side-foot">Дутикова К. Д.<br>Б.ПИН.РИС-24.06, ТвГТУ</p>
+    </aside>
+
+    <main class="main">
+        <header class="head">
+            <div>
+                <h1 class="head-title">Финансовый трекер расходов</h1>
+                <p class="head-note">Лабораторная работа № 3, вариант 8</p>
+            </div>
+            <span class="head-date">сегодня {{ today }}</span>
+        </header>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Расходы за последние 7 дней</h2>
+                <span class="hint">длина полосы — доля от самого дорогого дня</span>
+            </div>
+            <div class="bars">
+                {% for item in daily %}
+                <div class="bar-row">
+                    <span class="bar-date">{{ item.label }}</span>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width: {{ item.height }}%"></div>
+                    </div>
+                    <span class="bar-sum">{{ item.sum_text }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Новый расход</h2>
+            {% if error %}<div class="error">{{ error }}</div>{% endif %}
+            <form class="form" method="post" action="/expenses">
+                <label>Название
+                    <input type="text" name="title" value="{{ form.get('title', '') }}" required>
+                </label>
+                <label>Категория
+                    <select name="category">
+                        {% for item in categories %}
+                        <option value="{{ item }}" {% if form.get('category') == item %}selected{% endif %}>{{ item }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>Сумма, руб.
+                    <input type="text" name="amount" value="{{ form.get('amount', '') }}" placeholder="1200,00" required>
+                </label>
+                <label>Дата
+                    <input type="text" name="spent_on" value="{{ form.get('spent_on', today) }}" required>
+                </label>
+                <label class="f-note">Комментарий
+                    <input type="text" name="note" value="{{ form.get('note', '') }}">
+                </label>
+                <button type="submit">Записать</button>
+            </form>
+        </section>
+
+        <section class="panel">
             <div class="panel-head">
                 <h2>Каталог расходов</h2>
                 <form class="filters" method="get" action="/">
@@ -88,15 +136,15 @@
                 <tbody>
                 {% for item in expenses %}
                 <tr>
-                    <td>{{ item.expense_id }}</td>
-                    <td>{{ item.date_text }}</td>
+                    <td class="num">{{ item.expense_id }}</td>
+                    <td class="num">{{ item.date_text }}</td>
                     <td>{{ item.title }}</td>
                     <td><span class="tag">{{ item.category }}</span></td>
-                    <td class="money">{{ item.amount_text }}</td>
+                    <td class="sum">{{ item.amount_text }}</td>
                     <td class="muted">{{ item.note }}</td>
                     <td>
                         <form method="post" action="/expenses/{{ item.expense_id }}/delete">
-                            <button class="delete" type="submit">Удалить</button>
+                            <button class="drop" type="submit">Удалить</button>
                         </form>
                     </td>
                 </tr>
@@ -105,48 +153,24 @@
                 {% endfor %}
                 </tbody>
             </table>
-        </div>
+        </section>
 
-        <aside class="side">
-            <div class="panel">
-                <h2>Расходы за 7 дней</h2>
-                <div class="chart">
-                    {% for item in daily %}
-                    <div class="bar-box">
-                        <div class="bar-value">{{ item.value_text }}</div>
-                        <div class="bar" style="height: {{ item.height }}%"></div>
-                        <div class="bar-label">{{ item.label }}</div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="panel">
-                <h2>По категориям</h2>
-                {% for item in summary.by_category %}
-                <div class="category-row">
-                    <span>{{ item.name }}</span>
-                    <span>{{ item.sum_text }} · {{ item.percent|string|replace('.', ',') }}%</span>
-                </div>
+        <section class="panel">
+            <h2>Последние действия</h2>
+            <ul class="journal">
+                {% for record in records %}
+                <li><span class="when">{{ record.created }}</span>
+                    <span class="what">{{ record.action }}: {{ record.details }}</span></li>
+                {% else %}
+                <li class="muted">Журнал пока пуст</li>
                 {% endfor %}
-            </div>
+            </ul>
+        </section>
 
-            <div class="panel">
-                <h2>Последние действия</h2>
-                <ul class="journal">
-                    {% for record in records %}
-                    <li><span>{{ record.created }}</span>{{ record.action }}: {{ record.details }}</li>
-                    {% else %}
-                    <li class="muted">Журнал пока пуст</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </aside>
-    </section>
-</main>
-
-<footer>
-    Дутикова Ксения Дмитриевна, Б.ПИН.РИС-24.06, ТвГТУ, 2026
-</footer>
+        <footer class="foot">
+            Дутикова Ксения Дмитриевна, Б.ПИН.РИС-24.06, ТвГТУ, 2026
+        </footer>
+    </main>
+</div>
 </body>
 </html>

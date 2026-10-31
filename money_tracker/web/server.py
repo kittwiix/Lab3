@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Веб-версия трекера на Litestar."""
+"""Веб-версия трекера на Litestar.
+
+Функция create_app() собирает приложение: подключает хранилище,
+маршруты и шаблоны Jinja2. Хранилище можно передать снаружи — так
+тесты подставляют временную SQLite вместо настоящего Postgres.
+"""
 
 import tempfile
 from datetime import date
@@ -26,11 +31,15 @@ def create_app(repository=None):
     service = TrackerService(repository or create_repository())
 
     def page(request, error="", status_code=200, form=None):
+        # одна общая функция сборки страницы: её вызывают и GET /,
+        # и POST /expenses, когда форма заполнена с ошибкой
         category = request.query_params.get("category", "")
         search = request.query_params.get("search", "")
         expenses = service.list_expenses(category or None, search)
         summary = service.summary()
         daily = service.daily_totals(7)
+        # горизонтальные полосы: ширина считается в процентах от
+        # самого дорогого дня, делить на ноль не даём
         maximum = max((item["sum"] for item in daily), default=0) or 1
         for item in daily:
             item["height"] = round(item["sum"] / maximum * 100, 1)
@@ -58,6 +67,8 @@ def create_app(repository=None):
 
     @post("/expenses")
     async def add_expense(request: Request) -> Template | Redirect:
+        # данные приходят из HTML-формы, поэтому читаем их как строки,
+        # а запятую в сумме меняем на точку до проверки
         form = await request.form()
         values = {
             "title": form.get("title", ""),
@@ -90,6 +101,8 @@ def create_app(repository=None):
 
     @get("/export.csv")
     async def export_csv() -> Response:
+        # сервис умеет писать только в файл, поэтому делаем временный
+        # файл, отдаём его содержимое и сразу удаляем в finally
         with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as file:
             path = Path(file.name)
         try:
@@ -103,6 +116,7 @@ def create_app(repository=None):
             headers={"Content-Disposition": "attachment; filename=expenses.csv"},
         )
 
+    # простой маршрут для проверки, что контейнер поднялся
     @get("/health")
     async def health() -> dict:
         return {"status": "ok"}

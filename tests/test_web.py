@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Тесты веб-маршрутов: страница, добавление, удаление, CSV и /health."""
+
 from datetime import date
 
 import pytest

@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Бизнес-логика финансового трекера."""
+"""Сервисный слой: операции над расходами и подсчёт статистики.
+
+Окно Tkinter и веб-страница вызывают только методы TrackerService,
+поэтому проверка дублей, запись в журнал и все формулы живут в одном
+месте и не расходятся между двумя интерфейсами.
+"""
 
 import csv
 from datetime import date, timedelta
@@ -15,7 +20,9 @@ class TrackerService:
         self.repository = repository
 
     def add_expense(self, title, category, amount, spent_on, note=""):
+        # сначала создаём объект: если поля неверные, дальше не пойдём
         expense = Expense(title, category, amount, spent_on, note)
+        # ищем такую же трату: совпали название, дата и сумма
         for item in self.repository.list_expenses():
             same_title = item.title.casefold() == expense.title.casefold()
             same_date = item.spent_on == expense.spent_on
@@ -30,6 +37,7 @@ class TrackerService:
         return saved
 
     def delete_expense(self, expense_id):
+        # сначала читаем запись, чтобы было что написать в журнал
         expense = self.repository.get(expense_id)
         if expense is None:
             raise ExpenseNotFound("расход не найден")
@@ -44,10 +52,12 @@ class TrackerService:
         return self.repository.list_expenses(category, search)
 
     def summary(self):
+        """Итог, количество, средний расход и доли категорий."""
         expenses = self.repository.list_expenses()
         total = sum(item.amount for item in expenses)
         count = len(expenses)
         average = total / count if count else 0.0
+        # категории идём по справочнику, чтобы порядок был всегда одинаковым
         by_category = []
         for category in CATEGORIES:
             category_sum = sum(
@@ -71,6 +81,11 @@ class TrackerService:
         }
 
     def daily_totals(self, days=7):
+        """Суммы по дням за последние days дней, включая сегодня.
+
+        Дни без трат тоже попадают в результат с нулём, иначе
+        на графике пропадали бы пустые столбцы.
+        """
         today = date.today()
         start = today - timedelta(days=days - 1)
         totals = {
@@ -92,6 +107,7 @@ class TrackerService:
         return result
 
     def export_csv(self, path):
+        # utf-8-sig нужен, чтобы Excel не ломал русские буквы
         expenses = self.repository.list_expenses()
         try:
             with open(path, "w", encoding="utf-8-sig", newline="") as file:

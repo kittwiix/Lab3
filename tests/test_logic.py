@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+"""Тесты сервиса: добавление, удаление, сводка, суммы по дням и CSV."""
+
 from datetime import date, timedelta
 
 import pytest

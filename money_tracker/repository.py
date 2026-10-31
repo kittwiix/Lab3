@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Хранилище расходов: SQLite и PostgreSQL."""
+"""Хранилище расходов: SQLite для окна и PostgreSQL для веб-версии.
+
+Оба класса наследуются от ExpenseRepository, поэтому сервису всё равно,
+какая база под ним: он вызывает только add(), get(), list_expenses()
+и остальные методы интерфейса. Соединение открывается на время одной
+операции и закрывается в finally, иначе файл базы остался бы заблокирован.
+"""
 
 import os
 import sqlite3
@@ -11,6 +17,8 @@ from pathlib import Path
 from .errors import RepositoryError
 from .records import Expense, JournalRecord
 
+# схема для sqlite: дата хранится строкой, потому что у sqlite нет
+# отдельного типа DATE
 SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS expenses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,6 +38,8 @@ CREATE TABLE IF NOT EXISTS journal (
 );
 """
 
+# в postgres дата настоящая DATE, а сумма NUMERIC(12, 2) — без
+# накопления ошибки округления при сложении денег
 POSTGRES_SCHEMA = (
     """
     CREATE TABLE IF NOT EXISTS expenses (
@@ -55,7 +65,11 @@ POSTGRES_SCHEMA = (
 
 
 class ExpenseRepository(ABC):
-    """Общий интерфейс хранилища."""
+    """Общий интерфейс хранилища.
+
+    Все методы абстрактные, поэтому создать ExpenseRepository напрямую
+    нельзя — можно только один из наследников.
+    """
 
     @abstractmethod
     def add(self, expense):
@@ -91,6 +105,7 @@ class SqliteRepository(ExpenseRepository):
 
     def __init__(self, path="expenses.db"):
         self.path = str(path)
+        # если файл лежит не в текущей папке, создаём её заранее
         folder = Path(self.path).parent
         if str(folder) not in ("", "."):
             folder.mkdir(parents=True, exist_ok=True)
@@ -98,6 +113,7 @@ class SqliteRepository(ExpenseRepository):
 
     @contextmanager
     def _connect(self):
+        # row_factory позволяет обращаться к колонкам по имени: row["title"]
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
         try:
@@ -152,6 +168,8 @@ class SqliteRepository(ExpenseRepository):
         return self._row_to_expense(row) if row else None
 
     def list_expenses(self, category=None, search=""):
+        # условие WHERE 1 = 1 добавлено, чтобы дальше спокойно
+        # дописывать AND, не разбираясь, первый это фильтр или нет
         query = "SELECT * FROM expenses WHERE 1 = 1"
         params = []
         if category:
@@ -317,7 +335,11 @@ class PostgresRepository(ExpenseRepository):
 
 
 def create_repository():
-    """Выбрать PostgreSQL или SQLite по переменным окружения."""
+    """Выбрать PostgreSQL или SQLite по переменным окружения.
+
+    В docker-compose переменная DATABASE_URL указывает на контейнер db,
+    при обычном запуске её нет и программа работает с файлом expenses.db.
+    """
     url = os.environ.get("DATABASE_URL")
     if url:
         return PostgresRepository(url)
