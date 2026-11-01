@@ -5,13 +5,20 @@ from datetime import date, timedelta
 
 import pytest
 
-from money_tracker.errors import DuplicateExpense, ExpenseNotFound, ExportError
+from money_tracker.errors import (
+    DuplicateExpense,
+    ExpenseNotFound,
+    ExportError,
+    ValidationError,
+)
 
 
-def add(service, title="Продукты", amount=100.0, spent_on=None, category="Продукты"):
+def add(service, title="Продукты", amount=100.0, spent_on=None,
+        category="Продукты", place="Пятёрочка", payment="Карта"):
     if spent_on is None:
         spent_on = date.today().strftime("%d.%m.%Y")
-    return service.add_expense(title, category, amount, spent_on)
+    return service.add_expense(title, category, amount, spent_on, "",
+                               place, payment)
 
 
 def test_add_and_list(service):
@@ -63,8 +70,10 @@ def test_export_csv(service, tmp_path):
     path = tmp_path / "expenses.csv"
     service.export_csv(path)
     text = path.read_text(encoding="utf-8-sig")
-    assert "№;Дата;Название;Категория;Сумма, руб.;Комментарий;Добавлено" in text
+    assert ("№;Дата;Название;Категория;Место;Оплата;Сумма, руб.;"
+            "Комментарий;Добавлено") in text
     assert "Продукты" in text
+    assert "Пятёрочка;Карта" in text
 
 
 def test_export_csv_total(service, tmp_path):
@@ -74,7 +83,19 @@ def test_export_csv_total(service, tmp_path):
     service.export_csv(path)
     lines = path.read_text(encoding="utf-8-sig").strip().splitlines()
     assert len(lines) == 4
-    assert lines[-1].startswith(";;Итого;;150,00;записей: 2")
+    assert lines[-1].startswith(";;Итого;;;;150,00;записей: 2")
+
+
+def test_new_fields_saved(service):
+    saved = add(service, "Кофе", 320, place="Шоколадница", payment="Наличные")
+    assert saved.place == "Шоколадница"
+    assert saved.payment == "Наличные"
+    assert service.list_expenses()[0].payment == "Наличные"
+
+
+def test_bad_payment(service):
+    with pytest.raises(ValidationError):
+        add(service, "Кофе", 320, payment="Криптовалюта")
 
 
 def test_export_error(service):

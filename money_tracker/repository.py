@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS expenses (
     amount REAL NOT NULL,
     spent_on TEXT NOT NULL,
     note TEXT NOT NULL,
+    place TEXT NOT NULL DEFAULT '',
+    payment TEXT NOT NULL DEFAULT 'Карта',
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS journal (
@@ -50,6 +52,8 @@ POSTGRES_SCHEMA = (
         amount NUMERIC(12, 2) NOT NULL,
         spent_on DATE NOT NULL,
         note TEXT NOT NULL,
+        place TEXT NOT NULL DEFAULT '',
+        payment TEXT NOT NULL DEFAULT 'Карта',
         created_at TEXT NOT NULL
     )
     """,
@@ -128,6 +132,15 @@ class SqliteRepository(ExpenseRepository):
     def _init_db(self):
         with self._connect() as conn:
             conn.executescript(SQLITE_SCHEMA)
+            # база со старой версии колонок не имеет, поэтому дописываем их
+            columns = {row["name"] for row in
+                       conn.execute("PRAGMA table_info(expenses)")}
+            if "place" not in columns:
+                conn.execute("ALTER TABLE expenses ADD COLUMN place TEXT "
+                             "NOT NULL DEFAULT ''")
+            if "payment" not in columns:
+                conn.execute("ALTER TABLE expenses ADD COLUMN payment TEXT "
+                             "NOT NULL DEFAULT 'Карта'")
 
     @staticmethod
     def _row_to_expense(row):
@@ -137,6 +150,8 @@ class SqliteRepository(ExpenseRepository):
             float(row["amount"]),
             row["spent_on"],
             row["note"],
+            place=row["place"],
+            payment=row["payment"],
             expense_id=row["id"],
             created_at=row["created_at"],
         )
@@ -145,8 +160,9 @@ class SqliteRepository(ExpenseRepository):
         with self._connect() as conn:
             cursor = conn.execute(
                 "INSERT INTO expenses "
-                "(title, title_key, category, amount, spent_on, note, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "(title, title_key, category, amount, spent_on, note, "
+                "place, payment, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     expense.title,
                     expense.title.casefold(),
@@ -154,6 +170,8 @@ class SqliteRepository(ExpenseRepository):
                     expense.amount,
                     expense.spent_on.isoformat(),
                     expense.note,
+                    expense.place,
+                    expense.payment,
                     expense.created_at,
                 ),
             )
@@ -238,6 +256,11 @@ class PostgresRepository(ExpenseRepository):
             cursor = conn.cursor()
             for statement in POSTGRES_SCHEMA:
                 cursor.execute(statement)
+            # таблица из старой версии тоже должна получить новые поля
+            cursor.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS "
+                           "place TEXT NOT NULL DEFAULT ''")
+            cursor.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS "
+                           "payment TEXT NOT NULL DEFAULT 'Карта'")
             cursor.close()
 
     @staticmethod
@@ -248,6 +271,8 @@ class PostgresRepository(ExpenseRepository):
             float(row["amount"]),
             row["spent_on"],
             row["note"],
+            place=row["place"],
+            payment=row["payment"],
             expense_id=row["id"],
             created_at=row["created_at"],
         )
@@ -257,8 +282,9 @@ class PostgresRepository(ExpenseRepository):
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO expenses "
-                "(title, title_key, category, amount, spent_on, note, created_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                "(title, title_key, category, amount, spent_on, note, "
+                "place, payment, created_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (
                     expense.title,
                     expense.title.casefold(),
@@ -266,6 +292,8 @@ class PostgresRepository(ExpenseRepository):
                     expense.amount,
                     expense.spent_on,
                     expense.note,
+                    expense.place,
+                    expense.payment,
                     expense.created_at,
                 ),
             )

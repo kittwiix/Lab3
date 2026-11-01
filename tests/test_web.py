@@ -38,6 +38,8 @@ def test_add_expense(client, repo):
             "category": "Продукты",
             "amount": "100,50",
             "spent_on": date.today().strftime("%d.%m.%Y"),
+            "place": "Столовая",
+            "payment": "Наличные",
             "note": "кафе",
         },
         follow_redirects=False,
@@ -45,6 +47,8 @@ def test_add_expense(client, repo):
     assert response.status_code == 302
     assert len(repo.list_expenses()) == 1
     assert repo.list_expenses()[0].amount == 100.5
+    assert repo.list_expenses()[0].place == "Столовая"
+    assert repo.list_expenses()[0].payment == "Наличные"
 
 
 def test_invalid_expense(client):

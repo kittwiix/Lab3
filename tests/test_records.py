@@ -71,6 +71,30 @@ def test_format_money():
     assert format_money(15517.2) == "15 517,20 руб."
 
 
+def test_place_and_payment():
+    item = Expense("Кофе", "Развлечения", 320, "26.10.2026", "",
+                   "Шоколадница", "Наличные")
+    assert item.place == "Шоколадница"
+    assert item.payment == "Наличные"
+    assert "Шоколадница" in str(item)
+
+
+def test_place_is_empty_by_default():
+    item = Expense("Обед", "Продукты", 100, "26.10.2026")
+    assert item.place == ""
+    assert item.payment == "Карта"
+
+
+def test_long_place():
+    with pytest.raises(ValidationError):
+        Expense("Обед", "Продукты", 100, "26.10.2026", place="а" * 61)
+
+
+def test_unknown_payment():
+    with pytest.raises(ValidationError):
+        Expense("Обед", "Продукты", 100, "26.10.2026", payment="Биткоин")
+
+
 def test_str_repr_eq():
     first = Expense("Обед", "Продукты", 500, "26.10.2026", "кафе")
     second = Expense("Обед", "Продукты", 500, "26.10.2026", "кафе")

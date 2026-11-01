@@ -456,7 +456,9 @@ h1, h2 { font-weight: 400; }
     color: var(--muted);
 }
 
-.form .f-note { grid-column: 1 / 4; }
+.form .f-note { grid-column: span 2; }
+
+.form button { grid-column: 1 / 2; }
 
 input, select {
     border: 1px solid var(--line);

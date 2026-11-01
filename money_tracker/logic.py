@@ -19,9 +19,11 @@ class TrackerService:
     def __init__(self, repository):
         self.repository = repository
 
-    def add_expense(self, title, category, amount, spent_on, note=""):
+    def add_expense(self, title, category, amount, spent_on, note="",
+                    place="", payment="Карта"):
         # сначала создаём объект: если поля неверные, дальше не пойдём
-        expense = Expense(title, category, amount, spent_on, note)
+        expense = Expense(title, category, amount, spent_on, note,
+                          place, payment)
         # ищем такую же трату: совпали название, дата и сумма
         for item in self.repository.list_expenses():
             same_title = item.title.casefold() == expense.title.casefold()
@@ -115,19 +117,22 @@ class TrackerService:
                 writer = csv.writer(file, delimiter=";")
                 # выгружаем все поля записи, а не только те, что видны в таблице
                 writer.writerow(["№", "Дата", "Название", "Категория",
-                                 "Сумма, руб.", "Комментарий", "Добавлено"])
+                                 "Место", "Оплата", "Сумма, руб.",
+                                 "Комментарий", "Добавлено"])
                 for item in expenses:
                     writer.writerow([
                         item.expense_id,
                         item.date_text,
                         item.title,
                         item.category,
+                        item.place,
+                        item.payment,
                         f"{item.amount:.2f}".replace(".", ","),
                         item.note,
                         item.created_at,
                     ])
                 # итог отдельной строкой, чтобы в Excel сразу видна была сумма
-                writer.writerow(["", "", "Итого", "",
+                writer.writerow(["", "", "Итого", "", "", "",
                                  f"{total:.2f}".replace(".", ","),
                                  f"записей: {len(expenses)}", ""])
         except OSError as error:

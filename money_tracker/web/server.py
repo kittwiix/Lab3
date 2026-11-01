@@ -20,7 +20,7 @@ from litestar.template.config import TemplateConfig
 
 from ..errors import TrackerError
 from ..logic import TrackerService
-from ..records import CATEGORIES
+from ..records import CATEGORIES, PAYMENTS
 from ..repository import create_repository
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -84,6 +84,7 @@ def create_app(repository=None):
                 "error": error,
                 "form": form or {},
                 "categories": CATEGORIES,
+                "payments": PAYMENTS,
                 "today": date.today().strftime("%d.%m.%Y"),
             },
         )
@@ -102,6 +103,8 @@ def create_app(repository=None):
             "category": form.get("category", ""),
             "amount": form.get("amount", ""),
             "spent_on": form.get("spent_on", ""),
+            "place": form.get("place", ""),
+            "payment": form.get("payment", ""),
             "note": form.get("note", ""),
         }
         try:
@@ -111,6 +114,8 @@ def create_app(repository=None):
                 values["amount"].replace(",", "."),
                 values["spent_on"],
                 values["note"],
+                values["place"],
+                values["payment"] or "Карта",
             )
         except TrackerError as error:
             return page(request, str(error), status_code=400, form=values)

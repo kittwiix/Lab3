@@ -25,6 +25,13 @@ CATEGORIES = (
     "Другое",
 )
 
+# способ оплаты тоже из списка, чтобы в отчёте не было опечаток
+PAYMENTS = (
+    "Карта",
+    "Наличные",
+    "Перевод",
+)
+
 MIN_DATE = date(2000, 1, 1)
 MAX_AMOUNT = 1_000_000
 
@@ -58,13 +65,15 @@ class Expense:
     """Одна запись о расходе."""
 
     def __init__(self, title, category, amount, spent_on, note="",
-                 expense_id=None, created_at=None):
+                 place="", payment="Карта", expense_id=None, created_at=None):
         self.expense_id = expense_id
         self.title = title
         self.category = category
         self.amount = amount
         self.spent_on = spent_on
         self.note = note
+        self.place = place
+        self.payment = payment
         self.created_at = created_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     # --- managed-атрибуты: проверка идёт через setter ---
@@ -120,6 +129,32 @@ class Expense:
             raise ValidationError("комментарий длиннее 200 символов")
         self._note = value
 
+    @property
+    def place(self):
+        return self._place
+
+    @place.setter
+    def place(self, value):
+        # место необязательное: где именно сделана покупка
+        if value is None:
+            value = ""
+        if not isinstance(value, str):
+            raise ValidationError("место должно быть строкой")
+        value = value.strip()
+        if len(value) > 60:
+            raise ValidationError("место длиннее 60 символов")
+        self._place = value
+
+    @property
+    def payment(self):
+        return self._payment
+
+    @payment.setter
+    def payment(self, value):
+        if not isinstance(value, str) or value not in PAYMENTS:
+            raise ValidationError("неизвестный способ оплаты")
+        self._payment = value
+
     # --- готовые строки для интерфейса ---
 
     @property
@@ -174,14 +209,15 @@ class Expense:
 
     def __str__(self):
         # одна строка для таблицы и журнала
+        place = f", {self.place}" if self.place else ""
         return (f"{self.date_text} | {self.category} | {self.title} | "
-                f"{self.amount_text}")
+                f"{self.amount_text}{place}")
 
     def __repr__(self):
         # подробное представление для отладки и тестов
         return (f"Expense(id={self.expense_id!r}, title={self.title!r}, "
                 f"category={self.category!r}, amount={self.amount!r}, "
-                f"spent_on={self.spent_on!r})")
+                f"spent_on={self.spent_on!r}, payment={self.payment!r})")
 
     def __eq__(self, other):
         # два расхода равны, если совпадают все содержательные поля;
@@ -190,7 +226,8 @@ class Expense:
             return NotImplemented
         return (self.title == other.title and self.category == other.category
                 and self.amount == other.amount and self.spent_on == other.spent_on
-                and self.note == other.note)
+                and self.note == other.note and self.place == other.place
+                and self.payment == other.payment)
 
 
 @dataclass

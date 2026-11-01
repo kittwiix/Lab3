@@ -5,8 +5,8 @@ from money_tracker.records import Expense
 
 
 def make_expense(title="Продукты", category="Продукты", amount=100.0,
-                 spent_on="26.10.2026", note=""):
-    return Expense(title, category, amount, spent_on, note)
+                 spent_on="26.10.2026", note="", place="", payment="Карта"):
+    return Expense(title, category, amount, spent_on, note, place, payment)
 
 
 def test_add_and_get(repo):
@@ -17,6 +17,13 @@ def test_add_and_get(repo):
 
 def test_get_missing(repo):
     assert repo.get(999) is None
+
+
+def test_new_columns_round_trip(repo):
+    repo.add(make_expense(place="Лента", payment="Перевод"))
+    saved = repo.get(1)
+    assert saved.place == "Лента"
+    assert saved.payment == "Перевод"
 
 
 def test_list_and_filter(repo):

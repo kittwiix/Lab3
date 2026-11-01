@@ -132,6 +132,16 @@
                 <label>Дата
                     <input type="text" name="spent_on" value="{{ form.get('spent_on', today) }}" required>
                 </label>
+                <label>Место
+                    <input type="text" name="place" value="{{ form.get('place', '') }}" placeholder="Пятёрочка">
+                </label>
+                <label>Оплата
+                    <select name="payment">
+                        {% for item in payments %}
+                        <option value="{{ item }}" {% if form.get('payment') == item %}selected{% endif %}>{{ item }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
                 <label class="f-note">Комментарий
                     <input type="text" name="note" value="{{ form.get('note', '') }}">
                 </label>
@@ -159,7 +169,9 @@
                     <th>ID</th>
                     <th>Дата</th>
                     <th>Название</th>
+                    <th>Место</th>
                     <th>Категория</th>
+                    <th>Оплата</th>
                     <th>Сумма</th>
                     <th>Комментарий</th>
                     <th></th>
@@ -171,7 +183,9 @@
                     <td class="num">{{ item.expense_id }}</td>
                     <td class="num">{{ item.date_text }}</td>
                     <td>{{ item.title }}</td>
+                    <td class="muted">{{ item.place }}</td>
                     <td><span class="tag">{{ item.category }}</span></td>
+                    <td class="muted">{{ item.payment }}</td>
                     <td class="sum">{{ item.amount_text }}</td>
                     <td class="muted">{{ item.note }}</td>
                     <td>
@@ -181,7 +195,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" class="empty">Пока нет ни одной записи</td></tr>
+                <tr><td colspan="9" class="empty">Пока нет ни одной записи</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
