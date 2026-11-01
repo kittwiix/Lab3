@@ -26,6 +26,9 @@ ACCENT_DARK = "#174ea6"
 PRIMARY_ACTIVE = "#1765cc"
 TRACK = "#e8f0fe"
 BORDER = "#dadce0"
+# цвета секторов круговой диаграммы
+PIE_COLORS = ["#4285f4", "#ea4335", "#fbbc04", "#34a853",
+              "#a142f4", "#24c1e0", "#f439a0", "#ff6d01"]
 
 
 class MainWindow(tk.Tk):
@@ -59,6 +62,8 @@ class MainWindow(tk.Tk):
                         font=("Segoe UI", 10))
         style.configure("Muted.TLabel", background=CARD, foreground=MUTED,
                         font=("Segoe UI", 9))
+        style.configure("Small.TLabel", background=CARD, foreground=MUTED,
+                        font=("Segoe UI", 8))
         style.configure("Kpi.TLabel", background=CARD, foreground=ACCENT_DARK,
                         font=("Segoe UI Semibold", 18))
         style.configure("KpiTitle.TLabel", background=CARD, foreground=MUTED,
@@ -360,6 +365,10 @@ class MainWindow(tk.Tk):
 
         side_card = ttk.LabelFrame(body, text="По категориям", padding=10)
         side_card.grid(row=0, column=1, sticky="ns")
+        # круговая диаграмма в тех же цветах, что и на веб-странице
+        self.pie = tk.Canvas(side_card, width=120, height=120, bg=CARD,
+                             highlightthickness=0)
+        self.pie.pack(pady=(0, 6))
         # список категорий может быть длинным, поэтому он прокручивается
         self.cat_canvas = tk.Canvas(side_card, bg=CARD, highlightthickness=0,
                                     width=250)
@@ -447,34 +456,44 @@ class MainWindow(tk.Tk):
         # список категорий пересобирается заново при каждом обновлении
         for child in self.cat_box.winfo_children():
             child.destroy()
+        self._draw_pie(summary["by_category"], summary["total_text"])
         if not summary["by_category"]:
             ttk.Label(self.cat_box, text="Пока нет расходов",
                       style="Muted.TLabel").pack(anchor="w")
             return
-        for item in summary["by_category"]:
+        for index, item in enumerate(summary["by_category"]):
             row = ttk.Frame(self.cat_box, style="Card.TFrame")
-            row.pack(fill="x", pady=(0, 7))
-            top = ttk.Frame(row, style="Card.TFrame")
-            top.pack(fill="x")
-            ttk.Label(top, text=item["name"], style="Card.TLabel").pack(side="left")
-            ttk.Label(top, text=item["sum_text"],
+            row.pack(fill="x", pady=(0, 6))
+            # квадратик перед названием повторяет цвет сектора
+            tk.Frame(row, bg=PIE_COLORS[index % len(PIE_COLORS)], width=8,
+                     height=8).pack(side="left", padx=(0, 6))
+            ttk.Label(row, text=item["sum_text"],
                       style="Card.TLabel").pack(side="right")
-            # полоска доли категории: та же логика, что в веб-версии
-            track = tk.Canvas(row, height=5, bg=CARD, highlightthickness=0)
-            track.pack(fill="x", pady=(3, 2))
-            track.bind("<Configure>",
-                       lambda event, canvas=track, percent=item["percent"]:
-                       self._draw_track(canvas, percent))
-            ttk.Label(row, text=f"{item['percent']:.1f} % от всех расходов",
-                      style="Muted.TLabel").pack(anchor="w")
+            ttk.Label(row, text=item["name"], style="Card.TLabel").pack(side="left")
+            ttk.Label(row, text=f"{item['percent']:.1f} %",
+                      style="Small.TLabel").pack(side="left", padx=(6, 0))
 
-    def _draw_track(self, canvas, percent):
-        """Перерисовать полоску категории под текущую ширину окна."""
-        canvas.delete("all")
-        width = canvas.winfo_width()
-        canvas.create_rectangle(0, 0, width, 5, fill=TRACK, outline="")
-        canvas.create_rectangle(0, 0, width * percent / 100, 5, fill=ACCENT,
-                                outline="")
+    def _draw_pie(self, items, total_text):
+        """Круговая диаграмма: угол сектора равен доле категории."""
+        self.pie.delete("all")
+        size = 120
+        if not items:
+            self.pie.create_oval(8, 8, size - 8, size - 8, fill=TRACK, outline="")
+            return
+        start = 90.0
+        for index, item in enumerate(items):
+            extent = -item["percent"] * 3.6
+            self.pie.create_arc(6, 6, size - 6, size - 6, start=start,
+                                extent=extent, outline=CARD, width=2,
+                                fill=PIE_COLORS[index % len(PIE_COLORS)])
+            start += extent
+        # белый круг в середине делает из диаграммы кольцо
+        self.pie.create_oval(36, 36, size - 36, size - 36, fill=CARD, outline="")
+        self.pie.create_text(size / 2, size / 2 - 6, text="всего", fill=MUTED,
+                             font=("Segoe UI", 6))
+        self.pie.create_text(size / 2, size / 2 + 5,
+                             text=total_text.replace(" руб.", ""), fill=INK,
+                             font=("Segoe UI", 7))
 
     def _draw_chart(self):
         # горизонтальные полосы: так подписи дат читаются без наклона

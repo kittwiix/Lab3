@@ -109,18 +109,27 @@ class TrackerService:
     def export_csv(self, path):
         # utf-8-sig нужен, чтобы Excel не ломал русские буквы
         expenses = self.repository.list_expenses()
+        total = sum(item.amount for item in expenses)
         try:
             with open(path, "w", encoding="utf-8-sig", newline="") as file:
                 writer = csv.writer(file, delimiter=";")
-                writer.writerow(["Дата", "Название", "Категория", "Сумма", "Комментарий"])
+                # выгружаем все поля записи, а не только те, что видны в таблице
+                writer.writerow(["№", "Дата", "Название", "Категория",
+                                 "Сумма, руб.", "Комментарий", "Добавлено"])
                 for item in expenses:
                     writer.writerow([
+                        item.expense_id,
                         item.date_text,
                         item.title,
                         item.category,
                         f"{item.amount:.2f}".replace(".", ","),
                         item.note,
+                        item.created_at,
                     ])
+                # итог отдельной строкой, чтобы в Excel сразу видна была сумма
+                writer.writerow(["", "", "Итого", "",
+                                 f"{total:.2f}".replace(".", ","),
+                                 f"записей: {len(expenses)}", ""])
         except OSError as error:
             raise ExportError(f"не удалось сохранить файл: {error}") from error
         self.repository.add_record("экспорт", f"CSV, записей: {len(expenses)}")

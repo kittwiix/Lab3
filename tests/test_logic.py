@@ -63,8 +63,18 @@ def test_export_csv(service, tmp_path):
     path = tmp_path / "expenses.csv"
     service.export_csv(path)
     text = path.read_text(encoding="utf-8-sig")
-    assert "Дата;Название;Категория;Сумма;Комментарий" in text
+    assert "№;Дата;Название;Категория;Сумма, руб.;Комментарий;Добавлено" in text
     assert "Продукты" in text
+
+
+def test_export_csv_total(service, tmp_path):
+    add(service, "Продукты", 100)
+    add(service, "Проезд", 50)
+    path = tmp_path / "expenses.csv"
+    service.export_csv(path)
+    lines = path.read_text(encoding="utf-8-sig").strip().splitlines()
+    assert len(lines) == 4
+    assert lines[-1].startswith(";;Итого;;150,00;записей: 2")
 
 
 def test_export_error(service):

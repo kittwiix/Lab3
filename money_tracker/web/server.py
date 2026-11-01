@@ -25,6 +25,30 @@ from ..repository import create_repository
 
 BASE_DIR = Path(__file__).resolve().parent
 
+# цвета секторов круговой диаграммы, порядок повторяется по кругу
+PIE_COLORS = ["#4285f4", "#ea4335", "#fbbc04", "#34a853",
+              "#a142f4", "#24c1e0", "#f439a0", "#ff6d01"]
+
+
+def pie_chart(by_category):
+    """Подготовить данные для круговой диаграммы.
+
+    Возвращает список категорий с цветом и готовую заливку для CSS:
+    conic-gradient рисует сектора без графических библиотек.
+    """
+    items = []
+    parts = []
+    start = 0.0
+    for index, item in enumerate(by_category):
+        color = PIE_COLORS[index % len(PIE_COLORS)]
+        # последний сектор всегда доходит до 100%, иначе останется щель
+        end = 100.0 if index == len(by_category) - 1 else start + item["percent"]
+        parts.append(f"{color} {start:.2f}% {end:.2f}%")
+        items.append({**item, "color": color,
+                      "percent_text": f"{item['percent']:.1f}".replace(".", ",")})
+        start = end
+    return items, "conic-gradient(" + ", ".join(parts) + ")"
+
 
 def create_app(repository=None):
     """Создать приложение с указанным или выбранным хранилищем."""
@@ -44,6 +68,7 @@ def create_app(repository=None):
         for item in daily:
             item["height"] = round(item["sum"] / maximum * 100, 1)
             item["value_text"] = f"{item['sum']:,.0f}".replace(",", " ")
+        pie, pie_gradient = pie_chart(summary["by_category"])
         return Template(
             "index.html",
             status_code=status_code,
@@ -51,6 +76,8 @@ def create_app(repository=None):
                 "expenses": expenses,
                 "summary": summary,
                 "daily": daily,
+                "pie": pie,
+                "pie_gradient": pie_gradient,
                 "records": service.records(12),
                 "category": category,
                 "search": search,

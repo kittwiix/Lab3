@@ -84,6 +84,35 @@
         </section>
 
         <section class="panel">
+            <div class="panel-head">
+                <h2>Расходы по категориям</h2>
+                <span class="hint">доля каждой категории в общей сумме</span>
+            </div>
+            {% if pie %}
+            <div class="pie-box">
+                <div class="donut" style="background: {{ pie_gradient }}">
+                    <div class="donut-hole">
+                        <span class="donut-cap">всего</span>
+                        <strong class="donut-sum">{{ summary.total_text }}</strong>
+                    </div>
+                </div>
+                <ul class="legend">
+                    {% for item in pie %}
+                    <li>
+                        <span class="dot" style="background: {{ item.color }}"></span>
+                        <span class="legend-name">{{ item.name }}</span>
+                        <span class="legend-sum">{{ item.sum_text }}</span>
+                        <span class="legend-pct">{{ item.percent_text }} %</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% else %}
+            <p class="empty">Пока нет ни одной записи</p>
+            {% endif %}
+        </section>
+
+        <section class="panel">
             <h2>Новый расход</h2>
             {% if error %}<div class="error">{{ error }}</div>{% endif %}
             <form class="form" method="post" action="/expenses">

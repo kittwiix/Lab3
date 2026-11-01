@@ -349,6 +349,96 @@ h1, h2 { font-weight: 400; }
     to { opacity: 1; transform: none; }
 }
 
+/* ---------- круговая диаграмма ---------- */
+
+.pie-box {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+    flex-wrap: wrap;
+    padding: 4px 0 2px;
+}
+
+.donut {
+    position: relative;
+    width: 196px;
+    height: 196px;
+    border-radius: 50%;
+    flex: none;
+    box-shadow: var(--shadow-1);
+    animation: pop .5s cubic-bezier(.2, 0, 0, 1) both;
+    animation-delay: .15s;
+}
+
+.donut-hole {
+    position: absolute;
+    inset: 46px;
+    background: var(--card);
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 0 1px rgba(60, 64, 67, .07);
+}
+
+.donut-cap {
+    font-size: 10px;
+    letter-spacing: .6px;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.donut-sum {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 26px;
+    flex: 1;
+    min-width: 320px;
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    padding: 5px 4px;
+    border-bottom: 1px solid #f1f3f4;
+    border-radius: 6px;
+    transition: background-color .18s ease;
+}
+
+.legend li:hover { background: var(--paper); }
+
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+
+.legend-name { flex: 1; }
+
+.legend-sum { color: var(--muted); white-space: nowrap; }
+
+.legend-pct {
+    width: 54px;
+    text-align: right;
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+@keyframes pop {
+    from { opacity: 0; transform: scale(.88); }
+    to { opacity: 1; transform: none; }
+}
+
 /* ---------- форма ---------- */
 
 .form {
@@ -572,6 +662,9 @@ tbody tr:hover td { background: var(--paper); }
     .form button { grid-column: 2; }
     .bar-row { grid-template-columns: 46px 1fr 110px; }
     .steps { grid-template-columns: 1fr; }
+    .legend { grid-template-columns: 1fr; min-width: 0; }
+    .donut { width: 160px; height: 160px; }
+    .donut-hole { inset: 38px; }
 }
 
 /* для тех, кто отключил анимации в системе */

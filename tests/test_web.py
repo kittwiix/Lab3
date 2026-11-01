@@ -23,6 +23,13 @@ def test_index(client):
     assert "Финансовый трекер расходов" in response.text
 
 
+def test_pie_chart(client, repo):
+    repo.add(Expense("Обед", "Продукты", 100, date.today()))
+    response = client.get("/")
+    assert "conic-gradient" in response.text
+    assert "Расходы по категориям" in response.text
+
+
 def test_add_expense(client, repo):
     response = client.post(
         "/expenses",
