@@ -6,6 +6,7 @@
 окне, и в веб-версии. Все данные перечитываются в refresh().
 """
 
+import ctypes
 import tkinter as tk
 from datetime import date
 from pathlib import Path
@@ -14,7 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 from .errors import TrackerError
-from .records import CATEGORIES
+from .records import CATEGORIES, PAYMENTS, format_money
 
 # палитра в духе Google: светлый фон, синий акцент и мягкие подложки
 BG = "#f8f9fa"
@@ -45,14 +46,22 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.service = service
         self.title("Кошелёк — финансовый трекер расходов")
+        # свою рамку рисуем сами, системная шапка Windows тут лишняя
+        self.overrideredirect(True)
+        self._maximized = False
+        self._restore_geometry = ""
+        self._drag_offset = (0, 0)
+        self._resize_start = (0, 0, 0, 0)
         self._place_window()
         self.minsize(1000, 620)
         self.configure(bg=BG)
         self._build_style()
-        self._build_menu()
+        self._build_title_bar()
         self._build_header()
         self._build_tabs()
         self._build_status()
+        self._build_grip()
+        self.after(120, self._show_in_taskbar)
         self.refresh()
 
     def _place_window(self):
@@ -111,7 +120,8 @@ class MainWindow(tk.Tk):
                         bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER)
         style.map("TEntry", bordercolor=[("focus", ACCENT)])
         style.configure("TCombobox", padding=6, fieldbackground=CARD,
-                        bordercolor=BORDER, arrowcolor=MUTED)
+                        background=CARD, bordercolor=BORDER,
+                        arrowcolor=MUTED, arrowsize=12)
         style.map("TCombobox",
                   bordercolor=[("focus", ACCENT)],
                   fieldbackground=[("readonly", CARD)])
@@ -133,23 +143,141 @@ class MainWindow(tk.Tk):
         style.map("Treeview", background=[("selected", TRACK)],
                   foreground=[("selected", INK)])
 
-    def _build_menu(self):
-        menubar = tk.Menu(self)
-        file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Экспорт в CSV", command=self.on_export)
-        file_menu.add_separator()
-        file_menu.add_command(label="Выход", command=self.destroy)
-        menubar.add_cascade(label="Файл", menu=file_menu)
+    def _build_title_bar(self):
+        """Своя полоса заголовка: знак, меню и кнопки окна."""
+        bar = tk.Frame(self, bg=CARD, height=46)
+        bar.pack(fill="x", side="top")
+        bar.pack_propagate(False)
 
-        view_menu = tk.Menu(menubar, tearoff=0)
-        view_menu.add_command(label="Обновить", command=self.refresh)
-        view_menu.add_command(label="Журнал действий", command=self.show_journal_tab)
-        menubar.add_cascade(label="Вид", menu=view_menu)
+        mark = tk.Canvas(bar, width=24, height=24, bg=CARD,
+                         highlightthickness=0)
+        mark.create_oval(1, 1, 23, 23, fill=ACCENT, outline="")
+        mark.create_text(12, 12, text="₽", fill="white",
+                         font=("Segoe UI Semibold", 10))
+        mark.pack(side="left", padx=(14, 8))
 
-        help_menu = tk.Menu(menubar, tearoff=0)
-        help_menu.add_command(label="О программе", command=self.show_about)
-        menubar.add_cascade(label="Справка", menu=help_menu)
-        self.config(menu=menubar)
+        caption = tk.Label(bar, text="Кошелёк — финансовый трекер", bg=CARD,
+                           fg=INK, font=("Segoe UI", 9))
+        caption.pack(side="left")
+
+        # кнопки окна справа: свернуть, развернуть, закрыть
+        close = self._title_button(bar, "✕", self.destroy, "#d93025", "#fce8e6")
+        close.pack(side="right", fill="y")
+        self.max_button = self._title_button(bar, "□", self.toggle_max, MUTED, "#f1f3f4")
+        self.max_button.pack(side="right", fill="y")
+        self._title_button(bar, "–", self.minimize, MUTED, "#f1f3f4").pack(
+            side="right", fill="y")
+
+        # меню живёт в самой шапке, иначе Tk показал бы его над окном
+        menus = (("Файл", (("Экспорт в CSV", self.on_export),
+                           ("-", None),
+                           ("Выход", self.destroy))),
+                 ("Вид", (("Обновить", self.refresh),
+                          ("Журнал действий", self.show_journal_tab))),
+                 ("Справка", (("Как работать", self.show_help),
+                              ("О программе", self.show_about))))
+        for name, items in menus:
+            self._menu_button(bar, name, items).pack(side="left", padx=(6, 0))
+
+        tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
+
+        # за шапку окно таскают мышью
+        for widget in (bar, mark, caption):
+            widget.bind("<Button-1>", self._start_move)
+            widget.bind("<B1-Motion>", self._on_move)
+            widget.bind("<Double-Button-1>", lambda event: self.toggle_max())
+
+    def _title_button(self, parent, text, command, color, hover):
+        """Кнопка окна: плоская, с подсветкой при наведении."""
+        button = tk.Label(parent, text=text, bg=CARD, fg=color, width=4,
+                          font=("Segoe UI", 10), cursor="hand2")
+        button.bind("<Button-1>", lambda event: command())
+        button.bind("<Enter>", lambda event: button.configure(bg=hover))
+        button.bind("<Leave>", lambda event: button.configure(bg=CARD))
+        return button
+
+    def _menu_button(self, parent, name, items):
+        """Пункт меню, который раскрывается прямо в окне."""
+        button = tk.Menubutton(parent, text=name, bg=CARD, fg=INK,
+                               activebackground="#f1f3f4", relief="flat",
+                               bd=0, padx=10, pady=6, cursor="hand2",
+                               font=("Segoe UI", 9))
+        menu = tk.Menu(button, tearoff=0, bg=CARD, fg=INK,
+                       activebackground=TRACK, activeforeground=ACCENT_DARK,
+                       bd=0, font=("Segoe UI", 9))
+        for label, command in items:
+            if command is None:
+                menu.add_separator()
+            else:
+                menu.add_command(label=label, command=command)
+        button.configure(menu=menu)
+        return button
+
+    def _show_in_taskbar(self):
+        """Вернуть окно на панель задач: без рамки Windows его прячет."""
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
+            ctypes.windll.user32.SetWindowLongW(hwnd, -20, style | 0x00040000)
+        except AttributeError:
+            # на других системах ничего делать не нужно
+            pass
+
+    def _start_move(self, event):
+        self._drag_offset = (event.x_root - self.winfo_x(),
+                             event.y_root - self.winfo_y())
+
+    def _on_move(self, event):
+        if self._maximized:
+            return
+        self.geometry(f"+{event.x_root - self._drag_offset[0]}"
+                      f"+{event.y_root - self._drag_offset[1]}")
+
+    def toggle_max(self):
+        """Развернуть окно на весь экран и вернуть обратно."""
+        if self._maximized:
+            self.geometry(self._restore_geometry)
+            self._maximized = False
+            self.max_button.configure(text="□")
+            return
+        self._restore_geometry = self.geometry()
+        width = self.winfo_screenwidth()
+        height = self.winfo_screenheight() - 48
+        self.geometry(f"{width}x{height}+0+0")
+        self._maximized = True
+        self.max_button.configure(text="❐")
+
+    def minimize(self):
+        """Свернуть окно: без рамки iconify не сработает, рамку возвращаем."""
+        self.overrideredirect(False)
+        self.iconify()
+        self.bind("<Map>", self._on_restore)
+
+    def _on_restore(self, event):
+        if event.widget is self and self.state() == "normal":
+            self.overrideredirect(True)
+            self.unbind("<Map>")
+            self._show_in_taskbar()
+
+    def _build_grip(self):
+        """Уголок в правом нижнем углу: за него окно тянут мышью."""
+        grip = tk.Canvas(self, width=16, height=16, bg=BG,
+                         highlightthickness=0, cursor="bottom_right_corner")
+        for shift in (4, 8, 12):
+            grip.create_line(16 - shift, 15, 15, 16 - shift, fill="#bdc1c6")
+        grip.place(relx=1.0, rely=1.0, anchor="se")
+        grip.bind("<Button-1>", self._start_resize)
+        grip.bind("<B1-Motion>", self._on_resize)
+
+    def _start_resize(self, event):
+        self._resize_start = (event.x_root, event.y_root,
+                              self.winfo_width(), self.winfo_height())
+
+    def _on_resize(self, event):
+        x0, y0, width, height = self._resize_start
+        new_width = max(width + event.x_root - x0, 1000)
+        new_height = max(height + event.y_root - y0, 620)
+        self.geometry(f"{new_width}x{new_height}")
 
     def _build_header(self):
         # светлая полоса сверху: знак приложения, название и итоговая сумма
@@ -274,13 +402,17 @@ class MainWindow(tk.Tk):
         self.tab_expenses.columnconfigure(1, weight=1)
         self.tab_expenses.rowconfigure(0, weight=1)
 
-        form = ttk.LabelFrame(self.tab_expenses, text="Новая трата", padding=14)
-        form.grid(row=0, column=0, sticky="nsw", padx=(0, 14))
+        form = ttk.LabelFrame(self.tab_expenses, text=" Новая трата ", padding=16)
+        form.grid(row=0, column=0, sticky="nsw", padx=(0, 16))
+        ttk.Label(form, text="Сумма принимается с запятой или точкой",
+                  style="Muted.TLabel").pack(anchor="w", pady=(0, 12))
 
         self.title_var = tk.StringVar()
         self.category_var = tk.StringVar(value=CATEGORIES[0])
         self.amount_var = tk.StringVar()
         self.date_var = tk.StringVar(value=date.today().strftime("%d.%m.%Y"))
+        self.place_var = tk.StringVar()
+        self.payment_var = tk.StringVar(value=PAYMENTS[0])
         self.note_var = tk.StringVar()
 
         self.title_entry = self._field(form, "Название", self.title_var)
@@ -291,71 +423,118 @@ class MainWindow(tk.Tk):
                      state="readonly", width=24).pack(fill="x", pady=(2, 0))
         self._field(form, "Сумма, руб.", self.amount_var)
         self._field(form, "Дата", self.date_var)
+        self._field(form, "Место", self.place_var)
+        # способ оплаты выбирается из списка, чтобы в отчёте не было опечаток
+        pay_block = ttk.Frame(form, style="Card.TFrame")
+        pay_block.pack(fill="x", pady=(0, 8))
+        ttk.Label(pay_block, text="Оплата", style="Card.TLabel").pack(anchor="w")
+        ttk.Combobox(pay_block, textvariable=self.payment_var, values=PAYMENTS,
+                     state="readonly", width=24).pack(fill="x", pady=(2, 0))
         self._field(form, "Комментарий", self.note_var)
 
         ttk.Button(form, text="Записать", style="Accent.TButton",
-                   command=self.on_add).pack(fill="x", pady=(6, 0))
+                   command=self.on_add).pack(fill="x", pady=(10, 0))
+        ttk.Label(form, text="Записи остаются в базе SQLite",
+                  style="Small.TLabel").pack(anchor="center", pady=(10, 0))
 
         right = ttk.Frame(self.tab_expenses)
         right.grid(row=0, column=1, sticky="nsew")
-        right.rowconfigure(1, weight=1)
+        right.rowconfigure(2, weight=1)
         right.columnconfigure(0, weight=1)
 
-        toolbar = ttk.Frame(right)
-        toolbar.grid(row=0, column=0, sticky="ew", pady=(0, 8))
-        ttk.Label(toolbar, text="Поиск:").pack(side="left")
+        # короткая сводка: те же цифры, что и на вкладке статистики
+        cards = ttk.Frame(right)
+        cards.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        self.card_total = self._compact_card(cards, "Потрачено всего")
+        self.card_count = self._compact_card(cards, "Записей")
+        self.card_average = self._compact_card(cards, "Средний расход")
+
+        toolbar = ttk.Frame(right, style="Card.TFrame", padding=(14, 10))
+        toolbar.grid(row=1, column=0, sticky="ew", pady=(0, 10))
+        ttk.Label(toolbar, text="Поиск", style="Card.TLabel").pack(side="left")
         self.search_var = tk.StringVar()
-        search_entry = ttk.Entry(toolbar, textvariable=self.search_var, width=26)
-        search_entry.pack(side="left", padx=(4, 12))
+        search_entry = ttk.Entry(toolbar, textvariable=self.search_var, width=28)
+        search_entry.pack(side="left", padx=(8, 16))
         search_entry.bind("<Return>", lambda event: self.refresh())
 
-        ttk.Label(toolbar, text="Категория:").pack(side="left")
+        ttk.Label(toolbar, text="Категория", style="Card.TLabel").pack(side="left")
         self.filter_var = tk.StringVar(value="Все")
         filter_box = ttk.Combobox(toolbar, textvariable=self.filter_var,
                                   values=("Все",) + CATEGORIES, state="readonly",
                                   width=13)
-        filter_box.pack(side="left", padx=(4, 10))
+        filter_box.pack(side="left", padx=(8, 12))
         filter_box.bind("<<ComboboxSelected>>", lambda event: self.refresh())
 
         ttk.Button(toolbar, text="Найти", command=self.refresh).pack(side="left")
         ttk.Button(toolbar, text="Сбросить", command=self.reset_filters).pack(
-            side="left", padx=(6, 0))
+            side="left", padx=(8, 0))
 
         # таблица расходов: комментарий сюда не выводим, чтобы не сжимать колонки
         table_frame = ttk.Frame(right, style="Card.TFrame")
-        table_frame.grid(row=1, column=0, sticky="nsew")
-        columns = ("id", "date", "title", "category", "amount")
+        table_frame.grid(row=2, column=0, sticky="nsew")
+        columns = ("id", "date", "title", "place", "category", "payment",
+                   "amount")
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings",
                                  selectmode="browse")
         headings = {
-            "id": ("№", 46),
-            "date": ("Дата", 104),
-            "title": ("Название", 244),
-            "category": ("Категория", 122),
-            "amount": ("Сумма", 115),
+            "id": ("№", 42),
+            "date": ("Дата", 96),
+            "title": ("Название", 214),
+            "place": ("Место", 148),
+            "category": ("Категория", 108),
+            "payment": ("Оплата", 92),
+            "amount": ("Сумма", 108),
         }
         for name, (text, width) in headings.items():
             self.tree.heading(name, text=text)
-            anchor = "w" if name == "title" else "center"
-            # тянется только колонка с названием, остальные держат ширину
+            anchor = "w" if name in ("title", "place") else "center"
+            # название и место делят свободное место поровну
             self.tree.column(name, width=width, anchor=anchor,
-                             stretch=name == "title")
+                             stretch=name in ("title", "place"))
         self.tree.tag_configure("odd", background="#f7f9fc")
         self.tree.tag_configure("even", background=CARD)
+        self.tree.tag_configure("hover", background=TRACK)
+        self._hover_id = None
+        self.tree.bind("<Motion>", self._hover_row)
+        self.tree.bind("<Leave>", lambda event: self._hover_row(None))
 
         scroll = ttk.Scrollbar(table_frame, orient="vertical",
+                               style="Thin.Vertical.TScrollbar",
                                command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
         self.tree.pack(side="left", fill="both", expand=True, padx=(1, 0), pady=1)
         scroll.pack(side="right", fill="y")
 
         bottom = ttk.Frame(right)
-        bottom.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        bottom.grid(row=3, column=0, sticky="ew", pady=(10, 0))
         ttk.Button(bottom, text="Удалить выбранную", style="Danger.TButton",
                    command=self.on_delete).pack(side="left")
         self.count_label = ttk.Label(bottom, text="", style="Muted.TLabel")
         self.count_label.configure(background=BG)
         self.count_label.pack(side="right")
+
+    def _compact_card(self, parent, title):
+        """Короткая карточка с одной цифрой."""
+        card = ttk.Frame(parent, style="Card.TFrame", padding=(14, 10))
+        card.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        ttk.Label(card, text=title, style="KpiTitle.TLabel").pack(anchor="w")
+        value = tk.Label(card, text="—", bg=CARD, fg=HEADER_TEXT,
+                         font=("Segoe UI Semibold", 15))
+        value.pack(anchor="w", pady=(4, 0))
+        return value
+
+    def _hover_row(self, event):
+        """Подсветить строку под курсором, чтобы таблица не казалась мёртвой."""
+        row_id = self.tree.identify_row(event.y) if event else ""
+        if row_id == self._hover_id:
+            return
+        if self._hover_id:
+            index = self.tree.index(self._hover_id)
+            self.tree.item(self._hover_id,
+                           tags=("odd" if index % 2 else "even",))
+        self._hover_id = row_id
+        if row_id:
+            self.tree.item(row_id, tags=("hover",))
 
     def _field(self, parent, label, variable):
         """Поле формы: подпись сверху и строка ввода под ней."""
@@ -431,7 +610,9 @@ class MainWindow(tk.Tk):
         self.journal = tk.Text(card, wrap="word", bd=0, bg=CARD, fg=INK,
                                font=("Consolas", 9), state="disabled", padx=10,
                                pady=8)
-        scroll = ttk.Scrollbar(card, orient="vertical", command=self.journal.yview)
+        scroll = ttk.Scrollbar(card, orient="vertical",
+                               style="Thin.Vertical.TScrollbar",
+                               command=self.journal.yview)
         self.journal.configure(yscrollcommand=scroll.set)
         self.journal.pack(side="left", fill="both", expand=True)
         scroll.pack(side="right", fill="y")
@@ -450,12 +631,14 @@ class MainWindow(tk.Tk):
             category = None
         expenses = self.service.list_expenses(category, self.search_var.get())
         self.tree.delete(*self.tree.get_children())
+        self._hover_id = None
         for index, item in enumerate(expenses):
             tag = "odd" if index % 2 else "even"
             self.tree.insert(
                 "", "end",
                 values=(item.expense_id, item.date_text, item.title,
-                        item.category, item.amount_text),
+                        item.place, item.category, item.payment,
+                        item.amount_text),
                 tags=(tag,),
             )
         summary = self.service.summary()
@@ -463,7 +646,13 @@ class MainWindow(tk.Tk):
         self.kpi_total.configure(text=summary["total_text"])
         self.kpi_count.configure(text=str(summary["count"]))
         self.kpi_average.configure(text=summary["average_text"])
-        self.count_label.configure(text=f"показано: {len(expenses)}")
+        self.card_total.configure(text=summary["total_text"])
+        self.card_count.configure(text=str(summary["count"]))
+        self.card_average.configure(text=summary["average_text"])
+        shown_sum = sum(item.amount for item in expenses)
+        self.count_label.configure(
+            text=f"показано {len(expenses)} из {summary['count']} · "
+                 f"{format_money(shown_sum)}")
         self.status_var.set(f"Записей в базе: {summary['count']} · "
                             f"показано: {len(expenses)}")
         self._fill_categories(summary)
@@ -627,6 +816,8 @@ class MainWindow(tk.Tk):
                 self.amount_var.get().replace(",", "."),
                 self.date_var.get(),
                 self.note_var.get(),
+                self.place_var.get(),
+                self.payment_var.get(),
             )
         except TrackerError as error:
             messagebox.showerror("Ошибка", str(error))
@@ -635,6 +826,7 @@ class MainWindow(tk.Tk):
         self.title_var.set("")
         self.amount_var.set("")
         self.note_var.set("")
+        self.place_var.set("")
         self.date_var.set(date.today().strftime("%d.%m.%Y"))
         self.refresh()
         self.title_entry.focus_set()
@@ -687,14 +879,16 @@ class MainWindow(tk.Tk):
                  fg=MUTED, font=("Segoe UI", 9)).pack(anchor="w", padx=22)
 
         text = (
-            "Расходы. Заполните название, категорию, сумму и дату, затем "
-            "нажмите «Записать». Сумма принимается и с запятой, и с точкой.\n\n"
+            "Расходы. Заполните название, категорию, сумму и дату, укажите "
+            "место покупки и способ оплаты, затем нажмите «Записать». Сумма "
+            "принимается и с запятой, и с точкой.\n\n"
             "Поиск и фильтр. Строка поиска ищет по названию, список категорий "
             "ограничивает выдачу. Кнопка «Сбросить» возвращает полный список.\n\n"
             "Статистика. Сверху три карточки: сумма, число записей и средний "
             "расход. Ниже график за семь дней и разбивка по категориям.\n\n"
             "Журнал. Здесь видно, что и когда добавляли или удаляли. Кнопка "
-            "«Экспорт в CSV» сохраняет весь каталог в файл.\n\n"
+            "«Экспорт в CSV» сохраняет весь каталог в файл вместе с местом "
+            "и способом оплаты.\n\n"
             "Записи лежат в базе SQLite, поэтому после закрытия окна они "
             "остаются на месте."
         )
