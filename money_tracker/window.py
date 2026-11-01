@@ -8,7 +8,10 @@
 
 import tkinter as tk
 from datetime import date
+from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 from .errors import TrackerError
 from .records import CATEGORIES
@@ -29,6 +32,10 @@ BORDER = "#dadce0"
 # цвета секторов круговой диаграммы
 PIE_COLORS = ["#4285f4", "#ea4335", "#fbbc04", "#34a853",
               "#a142f4", "#24c1e0", "#f439a0", "#ff6d01"]
+# шрифты для подписи в центре кольца
+FONTS = Path(r"C:\Windows\Fonts")
+FONT_TEXT = FONTS / "segoeui.ttf"
+FONT_BOLD = FONTS / "seguisb.ttf" if (FONTS / "seguisb.ttf").exists() else FONT_TEXT
 
 
 class MainWindow(tk.Tk):
@@ -38,8 +45,8 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.service = service
         self.title("Кошелёк — финансовый трекер расходов")
-        self.geometry("1200x660")
-        self.minsize(980, 560)
+        self._place_window()
+        self.minsize(1000, 620)
         self.configure(bg=BG)
         self._build_style()
         self._build_menu()
@@ -47,6 +54,20 @@ class MainWindow(tk.Tk):
         self._build_tabs()
         self._build_status()
         self.refresh()
+
+    def _place_window(self):
+        """Подогнать окно под экран и поставить его по центру.
+
+        На большом мониторе окно занимает больше места, но сверх меры
+        не растягивается — иначе таблица становится слишком широкой.
+        """
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        width = min(max(1200, screen_width - 480), 1440)
+        height = min(max(660, screen_height - 200), 880)
+        left = max((screen_width - width) // 2, 0)
+        top = max((screen_height - height) // 2 - 20, 0)
+        self.geometry(f"{width}x{height}+{left}+{top}")
 
     # ---------- оформление ----------
 
@@ -94,6 +115,16 @@ class MainWindow(tk.Tk):
         style.map("TCombobox",
                   bordercolor=[("focus", ACCENT)],
                   fieldbackground=[("readonly", CARD)])
+        # тонкая рамка прокрутки без стрелок вместо стандартной широкой
+        style.layout("Thin.Vertical.TScrollbar", [
+            ("Vertical.Scrollbar.trough", {"sticky": "ns", "children": [
+                ("Vertical.Scrollbar.thumb",
+                 {"expand": "1", "sticky": "nswe"})]})])
+        style.configure("Thin.Vertical.TScrollbar", background="#dadce0",
+                        troughcolor=CARD, bordercolor=CARD, relief="flat",
+                        width=8)
+        style.map("Thin.Vertical.TScrollbar",
+                  background=[("active", "#bdc1c6")])
         style.configure("Treeview", background=CARD, fieldbackground=CARD,
                         foreground=INK, rowheight=28, font=("Segoe UI", 9),
                         borderwidth=0)
@@ -203,9 +234,9 @@ class MainWindow(tk.Tk):
         self._build_expenses_tab()
         self._build_stats_tab()
         self._build_journal_tab()
-        self._select_tab("expenses", animate=False)
+        self._select_tab("expenses")
 
-    def _select_tab(self, key, animate=True):
+    def _select_tab(self, key):
         """Показать вкладку и перевести на неё подчёркивание."""
         if self._current_tab == key:
             return
@@ -221,16 +252,6 @@ class MainWindow(tk.Tk):
                             font=("Segoe UI Semibold", 10) if active
                             else ("Segoe UI", 10))
         self._place_indicator()
-        # содержимое новой вкладки чуть поднимается вверх, как панель в вебе
-        if animate:
-            self._grow_in(frame, 10)
-
-    def _grow_in(self, frame, step):
-        if self._tab_frames.get(self._current_tab) is not frame:
-            return
-        frame.pack_configure(pady=(step, 0))
-        if step > 0:
-            self.after(14, lambda: self._grow_in(frame, step - 1))
 
     def _place_indicator(self):
         if not self._current_tab:
@@ -316,7 +337,9 @@ class MainWindow(tk.Tk):
         for name, (text, width) in headings.items():
             self.tree.heading(name, text=text)
             anchor = "w" if name == "title" else "center"
-            self.tree.column(name, width=width, anchor=anchor)
+            # тянется только колонка с названием, остальные держат ширину
+            self.tree.column(name, width=width, anchor=anchor,
+                             stretch=name == "title")
         self.tree.tag_configure("odd", background="#f7f9fc")
         self.tree.tag_configure("even", background=CARD)
 
@@ -364,26 +387,26 @@ class MainWindow(tk.Tk):
         self.chart.bind("<Configure>", lambda event: self._draw_chart())
 
         side_card = ttk.LabelFrame(body, text="По категориям", padding=10)
-        side_card.grid(row=0, column=1, sticky="ns")
+        side_card.grid(row=0, column=1, sticky="n")
         # круговая диаграмма в тех же цветах, что и на веб-странице
-        self.pie = tk.Canvas(side_card, width=120, height=120, bg=CARD,
+        self.pie = tk.Canvas(side_card, width=150, height=150, bg=CARD,
                              highlightthickness=0)
         self.pie.pack(pady=(0, 6))
         # список категорий может быть длинным, поэтому он прокручивается
         self.cat_canvas = tk.Canvas(side_card, bg=CARD, highlightthickness=0,
                                     width=250)
-        cat_scroll = ttk.Scrollbar(side_card, orient="vertical",
-                                   command=self.cat_canvas.yview)
-        self.cat_canvas.configure(yscrollcommand=cat_scroll.set)
-        cat_scroll.pack(side="right", fill="y")
+        self.cat_scroll = ttk.Scrollbar(side_card, orient="vertical",
+                                        style="Thin.Vertical.TScrollbar",
+                                        command=self.cat_canvas.yview)
+        self.cat_canvas.configure(yscrollcommand=self.cat_scroll.set)
+        self.cat_scroll.pack(side="right", fill="y")
         self.cat_canvas.pack(side="left", fill="both", expand=True)
         self.cat_box = ttk.Frame(self.cat_canvas, style="Card.TFrame")
         self._cat_window = self.cat_canvas.create_window(
             (0, 0), window=self.cat_box, anchor="nw")
         self.cat_box.bind("<Configure>", lambda event: self.cat_canvas.configure(
             scrollregion=self.cat_canvas.bbox("all")))
-        self.cat_canvas.bind("<Configure>", lambda event: self.cat_canvas.itemconfigure(
-            self._cat_window, width=event.width))
+        self.cat_canvas.bind("<Configure>", self._resize_cat_canvas)
 
     def _kpi_card(self, parent, title):
         card = ttk.Frame(parent, style="Card.TFrame", padding=12)
@@ -472,30 +495,73 @@ class MainWindow(tk.Tk):
             ttk.Label(row, text=item["name"], style="Card.TLabel").pack(side="left")
             ttk.Label(row, text=f"{item['percent']:.1f} %",
                       style="Small.TLabel").pack(side="left", padx=(6, 0))
+        # если все категории поместились, полоса прокрутки убирается
+        self.after(30, self._fit_cat_scroll)
+
+    def _resize_cat_canvas(self, event):
+        self.cat_canvas.itemconfigure(self._cat_window, width=event.width)
+        self._fit_cat_scroll()
+
+    def _fit_cat_scroll(self):
+        """Полосу прокрутки показываем только когда список не помещается."""
+        need = self.cat_box.winfo_reqheight()
+        have = self.cat_canvas.winfo_height()
+        if need + 4 <= have:
+            self.cat_scroll.pack_forget()
+        else:
+            self.cat_scroll.pack(side="right", fill="y")
 
     def _draw_pie(self, items, total_text):
-        """Круговая диаграмма: угол сектора равен доле категории."""
-        self.pie.delete("all")
-        size = 120
-        if not items:
-            self.pie.create_oval(8, 8, size - 8, size - 8, fill=TRACK, outline="")
+        """Круговая диаграмма: рисуем крупно и уменьшаем, чтобы края были гладкие."""
+        key = tuple((item["name"], round(item["percent"], 2)) for item in items)
+        if key == getattr(self, "_pie_key", None) and total_text == self._pie_total:
             return
-        start = 90.0
-        for index, item in enumerate(items):
-            extent = -item["percent"] * 3.6
-            self.pie.create_arc(6, 6, size - 6, size - 6, start=start,
-                                extent=extent, outline=CARD, width=2,
-                                fill=PIE_COLORS[index % len(PIE_COLORS)])
-            start += extent
-        # белый круг в середине делает из диаграммы кольцо
-        self.pie.create_oval(36, 36, size - 36, size - 36, fill=CARD, outline="")
-        self.pie.create_text(size / 2, size / 2 - 6, text="всего", fill=MUTED,
-                             font=("Segoe UI", 6))
-        self.pie.create_text(size / 2, size / 2 + 5,
-                             text=total_text.replace(" руб.", ""), fill=INK,
-                             font=("Segoe UI", 7))
+        self._pie_key = key
+        self._pie_total = total_text
+
+        size, scale = 150, 4
+        side = size * scale
+        image = Image.new("RGB", (side, side), CARD)
+        draw = ImageDraw.Draw(image)
+        margin = 8 * scale
+        box = [margin, margin, side - margin, side - margin]
+        if not items:
+            draw.ellipse(box, outline=TRACK, width=16 * scale)
+        else:
+            start = -90.0
+            for index, item in enumerate(items):
+                end = start + item["percent"] * 3.6
+                # маленький зазор отделяет сектора друг от друга
+                draw.pieslice(box, start, max(end - 0.6, start + 0.2),
+                              fill=PIE_COLORS[index % len(PIE_COLORS)])
+                start = end
+            hole = 46 * scale
+            draw.ellipse([hole, hole, side - hole, side - hole], fill=CARD)
+
+            # подписи тоже рисуем в четыре раза крупнее и уменьшаем
+            small = ImageFont.truetype(str(FONT_TEXT), 8 * scale)
+            bold = ImageFont.truetype(str(FONT_BOLD), 11 * scale)
+            draw.text((side / 2, side / 2 - 9 * scale), "всего",
+                      fill=MUTED, font=small, anchor="mm")
+            draw.text((side / 2, side / 2 + 6 * scale),
+                      total_text.replace(" руб.", ""), fill=INK, font=bold,
+                      anchor="mm")
+
+        image = image.resize((size, size), Image.LANCZOS)
+        self._pie_photo = ImageTk.PhotoImage(image)
+        self.pie.delete("all")
+        self.pie.create_image(0, 0, anchor="nw", image=self._pie_photo)
 
     def _draw_chart(self):
+        # при переключении вкладок размер меняется несколько раз подряд,
+        # поэтому перерисовку откладываем на один кадр
+        job = getattr(self, "_chart_job", None)
+        if job is not None:
+            self.after_cancel(job)
+        self._chart_job = self.after(30, self._render_chart)
+
+    def _render_chart(self):
+        self._chart_job = None
         # горизонтальные полосы: так подписи дат читаются без наклона
         self.chart.delete("all")
         width = max(self.chart.winfo_width(), 420)
