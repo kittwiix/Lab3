@@ -42,7 +42,7 @@
                     <span class="cat-sum">{{ item.sum_text }}</span>
                 </div>
                 <div class="cat-track">
-                    <div class="cat-fill" style="width: {{ item.percent }}%"></div>
+                    <div class="cat-fill" style="--w: {{ item.percent }}%; --i: {{ loop.index0 }}"></div>
                 </div>
                 <span class="cat-note">{{ item.percent|string|replace('.', ',') }}% от всех трат</span>
             </div>
@@ -59,7 +59,10 @@
                 <h1 class="head-title">Финансовый трекер расходов</h1>
                 <p class="head-note">Лабораторная работа № 3, вариант 8</p>
             </div>
-            <span class="head-date">сегодня {{ today }}</span>
+            <div class="head-right">
+                <a class="help-link" href="#help">Справка</a>
+                <span class="head-date">сегодня {{ today }}</span>
+            </div>
         </header>
 
         <section class="panel">
@@ -72,7 +75,7 @@
                 <div class="bar-row">
                     <span class="bar-date">{{ item.label }}</span>
                     <div class="bar-track">
-                        <div class="bar-fill" style="width: {{ item.height }}%"></div>
+                        <div class="bar-fill" style="--w: {{ item.height }}%; --i: {{ loop.index0 }}"></div>
                     </div>
                     <span class="bar-sum">{{ item.sum_text }}</span>
                 </div>
@@ -165,6 +168,50 @@
                 <li class="muted">Журнал пока пуст</li>
                 {% endfor %}
             </ul>
+        </section>
+
+        <section class="panel" id="help">
+            <div class="panel-head">
+                <h2>Справка</h2>
+                <span class="hint">что можно сделать на этой странице</span>
+            </div>
+            <div class="steps">
+                <div class="step">
+                    <span class="step-num">1</span>
+                    <div>
+                        <p class="step-title">Добавить расход</p>
+                        <p class="step-text">Заполните название, категорию, сумму и дату в блоке
+                            «Новый расход» и нажмите «Записать». Сумма принимается и с запятой,
+                            и с точкой.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-num">2</span>
+                    <div>
+                        <p class="step-title">Найти нужное</p>
+                        <p class="step-text">Над таблицей есть поиск по названию и список
+                            категорий. Фильтры работают вместе, выбранные значения
+                            остаются в адресе страницы.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-num">3</span>
+                    <div>
+                        <p class="step-title">Посмотреть статистику</p>
+                        <p class="step-text">Слева видна общая сумма, число записей и средний
+                            расход, ниже — график за семь дней и доли категорий.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-num">4</span>
+                    <div>
+                        <p class="step-title">Выгрузить данные</p>
+                        <p class="step-text">Кнопка «Скачать CSV» внизу панели сохраняет весь
+                            каталог в файл с разделителем «;». Запись удаляется кнопкой
+                            в последнем столбце таблицы.</p>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <footer class="foot">

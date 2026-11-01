@@ -13,19 +13,19 @@ from tkinter import filedialog, messagebox, ttk
 from .errors import TrackerError
 from .records import CATEGORIES
 
-# палитра окна: холодный светлый фон, тёмно-синяя шапка и медный акцент
-BG = "#eff2f6"
+# палитра в духе Google: светлый фон, синий акцент и мягкие подложки
+BG = "#f8f9fa"
 CARD = "#ffffff"
-HEADER = "#22304a"
-HEADER_TEXT = "#ffffff"
-HEADER_MUTED = "#a8b6cc"
-INK = "#1d2733"
-MUTED = "#6a7686"
-ACCENT = "#3a6ea5"
-ACCENT_DARK = "#2a5680"
-COPPER = "#c2703a"
-TRACK = "#e3e9f1"
-BORDER = "#d6dde7"
+HEADER = "#e8f0fe"
+HEADER_TEXT = "#174ea6"
+HEADER_MUTED = "#5f6368"
+INK = "#202124"
+MUTED = "#5f6368"
+ACCENT = "#1a73e8"
+ACCENT_DARK = "#174ea6"
+PRIMARY_ACTIVE = "#1765cc"
+TRACK = "#e8f0fe"
+BORDER = "#dadce0"
 
 
 class MainWindow(tk.Tk):
@@ -60,33 +60,41 @@ class MainWindow(tk.Tk):
         style.configure("Muted.TLabel", background=CARD, foreground=MUTED,
                         font=("Segoe UI", 9))
         style.configure("Kpi.TLabel", background=CARD, foreground=ACCENT_DARK,
-                        font=("Segoe UI Semibold", 17))
+                        font=("Segoe UI Semibold", 18))
         style.configure("KpiTitle.TLabel", background=CARD, foreground=MUTED,
                         font=("Segoe UI", 8))
         style.configure("TLabelframe", background=CARD, bordercolor=BORDER,
                         relief="solid", borderwidth=1)
-        style.configure("TLabelframe.Label", background=CARD, foreground=ACCENT_DARK,
+        style.configure("TLabelframe.Label", background=CARD, foreground=MUTED,
+                        font=("Segoe UI", 9))
+        style.configure("TButton", font=("Segoe UI", 9), padding=(12, 7),
+                        background=CARD, foreground=ACCENT, bordercolor=BORDER)
+        style.map("TButton",
+                  background=[("active", "#f1f3f4")],
+                  foreground=[("active", ACCENT_DARK)])
+        style.configure("Accent.TButton", background=ACCENT, foreground="white",
+                        borderwidth=0, padding=(14, 9),
                         font=("Segoe UI Semibold", 10))
-        style.configure("TNotebook", background=BG, borderwidth=0, tabmargins=(0, 6, 0, 0))
-        style.configure("TNotebook.Tab", background="#dde3ec", foreground=INK,
-                        font=("Segoe UI", 10), padding=(18, 8))
-        style.map("TNotebook.Tab",
-                  background=[("selected", CARD)],
-                  foreground=[("selected", ACCENT_DARK)])
-        style.configure("TButton", font=("Segoe UI", 9), padding=(10, 6))
-        style.configure("Accent.TButton", background=COPPER, foreground="white",
-                        borderwidth=0, padding=(12, 8))
         style.map("Accent.TButton",
-                  background=[("active", "#b25f30"), ("pressed", "#b25f30")])
-        style.configure("Danger.TButton", foreground="#a33a3a")
-        style.configure("TEntry", padding=5)
-        style.configure("TCombobox", padding=5)
+                  background=[("active", PRIMARY_ACTIVE), ("pressed", ACCENT_DARK)])
+        style.configure("Danger.TButton", foreground="#d93025", background=CARD)
+        style.map("Danger.TButton",
+                  background=[("active", "#fce8e6")],
+                  foreground=[("active", "#b3261e")])
+        style.configure("TEntry", padding=6, fieldbackground=CARD,
+                        bordercolor=BORDER, lightcolor=BORDER, darkcolor=BORDER)
+        style.map("TEntry", bordercolor=[("focus", ACCENT)])
+        style.configure("TCombobox", padding=6, fieldbackground=CARD,
+                        bordercolor=BORDER, arrowcolor=MUTED)
+        style.map("TCombobox",
+                  bordercolor=[("focus", ACCENT)],
+                  fieldbackground=[("readonly", CARD)])
         style.configure("Treeview", background=CARD, fieldbackground=CARD,
-                        foreground=INK, rowheight=27, font=("Segoe UI", 9),
+                        foreground=INK, rowheight=28, font=("Segoe UI", 9),
                         borderwidth=0)
         style.configure("Treeview.Heading", font=("Segoe UI Semibold", 9),
-                        background="#e6ebf3", foreground=ACCENT_DARK)
-        style.map("Treeview", background=[("selected", "#d8e3f0")],
+                        background="#f1f3f4", foreground=MUTED, relief="flat")
+        style.map("Treeview", background=[("selected", TRACK)],
                   foreground=[("selected", INK)])
 
     def _build_menu(self):
@@ -108,26 +116,44 @@ class MainWindow(tk.Tk):
         self.config(menu=menubar)
 
     def _build_header(self):
-        # тёмная полоса сверху: слева название, справа итоговая сумма
-        header = tk.Frame(self, bg=HEADER, height=76)
+        # светлая полоса сверху: знак приложения, название и итоговая сумма
+        header = tk.Frame(self, bg=HEADER)
         header.pack(fill="x")
-        header.pack_propagate(False)
 
         left = tk.Frame(header, bg=HEADER)
-        left.pack(side="left", padx=20, pady=10)
-        tk.Label(left, text="Кошелёк", bg=HEADER, fg=HEADER_TEXT,
-                 font=("Georgia", 20, "bold")).pack(anchor="w")
-        tk.Label(left, text="учёт личных расходов, вариант 8", bg=HEADER,
+        left.pack(side="left", padx=20, pady=18)
+        mark = tk.Canvas(left, width=42, height=42, bg=HEADER,
+                         highlightthickness=0)
+        mark.create_oval(1, 1, 41, 41, fill=ACCENT, outline="")
+        mark.create_text(21, 21, text="₽", fill="white",
+                         font=("Segoe UI Semibold", 17))
+        mark.pack(side="left", padx=(0, 12))
+        titles = tk.Frame(left, bg=HEADER)
+        titles.pack(side="left")
+        tk.Label(titles, text="Кошелёк", bg=HEADER, fg=HEADER_TEXT,
+                 font=("Segoe UI Semibold", 20)).pack(anchor="w")
+        tk.Label(titles, text="учёт личных расходов, вариант 8", bg=HEADER,
                  fg=HEADER_MUTED, font=("Segoe UI", 9)).pack(anchor="w")
 
         right = tk.Frame(header, bg=HEADER)
-        right.pack(side="right", padx=20)
+        right.pack(side="right", padx=20, pady=18)
         self.header_total = tk.Label(right, text="0,00 руб.", bg=HEADER,
                                      fg=HEADER_TEXT,
                                      font=("Segoe UI Semibold", 18))
         self.header_total.pack(anchor="e")
         tk.Label(right, text="потрачено всего", bg=HEADER, fg=HEADER_MUTED,
                  font=("Segoe UI", 8)).pack(anchor="e")
+
+        # кнопка справки стоит рядом с итогом, чтобы её было видно сразу
+        help_button = tk.Button(header, text="Справка", command=self.show_help,
+                                bg=HEADER, fg=ACCENT_DARK, relief="flat", bd=0,
+                                activebackground="#d2e3fc",
+                                activeforeground=ACCENT_DARK,
+                                cursor="hand2", font=("Segoe UI", 9),
+                                padx=14, pady=6)
+        help_button.pack(side="right", padx=(0, 6))
+        # тонкая линия отделяет шапку от содержимого, как в веб-версии
+        tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
 
     def _build_status(self):
         self.status_var = tk.StringVar(value="Готово")
@@ -139,17 +165,83 @@ class MainWindow(tk.Tk):
     # ---------- вкладки ----------
 
     def _build_tabs(self):
-        self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill="both", expand=True, padx=14, pady=(10, 4))
-        self.tab_expenses = ttk.Frame(self.notebook, padding=12)
-        self.tab_stats = ttk.Frame(self.notebook, padding=12)
-        self.tab_journal = ttk.Frame(self.notebook, padding=12)
-        self.notebook.add(self.tab_expenses, text="Расходы")
-        self.notebook.add(self.tab_stats, text="Статистика")
-        self.notebook.add(self.tab_journal, text="Журнал")
+        # своя полоса вкладок: синяя черта плавно переезжает к выбранной
+        self._tab_bar = tk.Frame(self, bg=CARD)
+        self._tab_bar.pack(fill="x")
+        self._tab_buttons = {}
+        self._tab_frames = {}
+        self._current_tab = None
+        for key, title in (("expenses", "Расходы"),
+                           ("stats", "Статистика"),
+                           ("journal", "Журнал")):
+            label = tk.Label(self._tab_bar, text=title, bg=CARD, fg=MUTED,
+                             cursor="hand2", font=("Segoe UI", 10),
+                             padx=22, pady=14)
+            label.pack(side="left")
+            label.bind("<Button-1>",
+                       lambda event, name=key: self._select_tab(name))
+            self._tab_buttons[key] = label
+        self._indicator = tk.Frame(self._tab_bar, bg=ACCENT, height=3)
+        self._indicator.place(x=0, y=0, width=0, height=3)
+        self._tab_bar.bind("<Configure>",
+                           lambda event: self.after_idle(self._place_indicator))
+        tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
+
+        self._body = tk.Frame(self, bg=BG)
+        self._body.pack(fill="both", expand=True)
+        self.tab_expenses = tk.Frame(self._body, bg=BG, padx=12, pady=12)
+        self.tab_stats = tk.Frame(self._body, bg=BG, padx=12, pady=12)
+        self.tab_journal = tk.Frame(self._body, bg=BG, padx=12, pady=12)
+        self._tab_frames = {"expenses": self.tab_expenses,
+                            "stats": self.tab_stats,
+                            "journal": self.tab_journal}
         self._build_expenses_tab()
         self._build_stats_tab()
         self._build_journal_tab()
+        self._select_tab("expenses", animate=False)
+
+    def _select_tab(self, key, animate=True):
+        """Показать вкладку и перевести на неё подчёркивание."""
+        if self._current_tab == key:
+            return
+        self._current_tab = key
+        for name, frame in self._tab_frames.items():
+            if name != key:
+                frame.pack_forget()
+        frame = self._tab_frames[key]
+        frame.pack(fill="both", expand=True, pady=(10, 0))
+        for name, label in self._tab_buttons.items():
+            active = name == key
+            label.configure(fg=ACCENT_DARK if active else MUTED,
+                            font=("Segoe UI Semibold", 10) if active
+                            else ("Segoe UI", 10))
+        self._place_indicator()
+        # содержимое новой вкладки чуть поднимается вверх, как панель в вебе
+        if animate:
+            self._grow_in(frame, 10)
+
+    def _grow_in(self, frame, step):
+        if self._tab_frames.get(self._current_tab) is not frame:
+            return
+        frame.pack_configure(pady=(step, 0))
+        if step > 0:
+            self.after(14, lambda: self._grow_in(frame, step - 1))
+
+    def _place_indicator(self):
+        if not self._current_tab:
+            return
+        label = self._tab_buttons[self._current_tab]
+        start = self._indicator.winfo_x()
+        self._indicator.place(x=start, width=label.winfo_width(), height=3,
+                              y=self._tab_bar.winfo_height() - 3)
+        self._slide_indicator(start, label.winfo_x(), 0)
+
+    def _slide_indicator(self, start, goal, step):
+        k = min(step / 10, 1)
+        k = 1 - (1 - k) ** 3
+        self._indicator.place_configure(x=int(start + (goal - start) * k))
+        if k < 1 and self._current_tab:
+            self.after(14, lambda: self._slide_indicator(start, goal, step + 1))
 
     def _build_expenses_tab(self):
         # слева форма, справа таблица — так форма не растягивается на всё окно
@@ -211,9 +303,9 @@ class MainWindow(tk.Tk):
                                  selectmode="browse")
         headings = {
             "id": ("№", 46),
-            "date": ("Дата", 92),
-            "title": ("Название", 260),
-            "category": ("Категория", 120),
+            "date": ("Дата", 104),
+            "title": ("Название", 244),
+            "category": ("Категория", 122),
             "amount": ("Сумма", 115),
         }
         for name, (text, width) in headings.items():
@@ -266,10 +358,23 @@ class MainWindow(tk.Tk):
         self.chart.pack(fill="both", expand=True)
         self.chart.bind("<Configure>", lambda event: self._draw_chart())
 
-        side_card = ttk.LabelFrame(body, text="По категориям", padding=12)
+        side_card = ttk.LabelFrame(body, text="По категориям", padding=10)
         side_card.grid(row=0, column=1, sticky="ns")
-        self.cat_box = ttk.Frame(side_card, style="Card.TFrame")
-        self.cat_box.pack(fill="both", expand=True)
+        # список категорий может быть длинным, поэтому он прокручивается
+        self.cat_canvas = tk.Canvas(side_card, bg=CARD, highlightthickness=0,
+                                    width=250)
+        cat_scroll = ttk.Scrollbar(side_card, orient="vertical",
+                                   command=self.cat_canvas.yview)
+        self.cat_canvas.configure(yscrollcommand=cat_scroll.set)
+        cat_scroll.pack(side="right", fill="y")
+        self.cat_canvas.pack(side="left", fill="both", expand=True)
+        self.cat_box = ttk.Frame(self.cat_canvas, style="Card.TFrame")
+        self._cat_window = self.cat_canvas.create_window(
+            (0, 0), window=self.cat_box, anchor="nw")
+        self.cat_box.bind("<Configure>", lambda event: self.cat_canvas.configure(
+            scrollregion=self.cat_canvas.bbox("all")))
+        self.cat_canvas.bind("<Configure>", lambda event: self.cat_canvas.itemconfigure(
+            self._cat_window, width=event.width))
 
     def _kpi_card(self, parent, title):
         card = ttk.Frame(parent, style="Card.TFrame", padding=12)
@@ -300,7 +405,7 @@ class MainWindow(tk.Tk):
         scroll.pack(side="right", fill="y")
 
     def show_journal_tab(self):
-        self.notebook.select(self.tab_journal)
+        self._select_tab("journal")
         self.refresh()
 
     # ---------- обновление данных ----------
@@ -348,14 +453,28 @@ class MainWindow(tk.Tk):
             return
         for item in summary["by_category"]:
             row = ttk.Frame(self.cat_box, style="Card.TFrame")
-            row.pack(fill="x", pady=(0, 8))
+            row.pack(fill="x", pady=(0, 7))
             top = ttk.Frame(row, style="Card.TFrame")
             top.pack(fill="x")
             ttk.Label(top, text=item["name"], style="Card.TLabel").pack(side="left")
             ttk.Label(top, text=item["sum_text"],
                       style="Card.TLabel").pack(side="right")
+            # полоска доли категории: та же логика, что в веб-версии
+            track = tk.Canvas(row, height=5, bg=CARD, highlightthickness=0)
+            track.pack(fill="x", pady=(3, 2))
+            track.bind("<Configure>",
+                       lambda event, canvas=track, percent=item["percent"]:
+                       self._draw_track(canvas, percent))
             ttk.Label(row, text=f"{item['percent']:.1f} % от всех расходов",
                       style="Muted.TLabel").pack(anchor="w")
+
+    def _draw_track(self, canvas, percent):
+        """Перерисовать полоску категории под текущую ширину окна."""
+        canvas.delete("all")
+        width = canvas.winfo_width()
+        canvas.create_rectangle(0, 0, width, 5, fill=TRACK, outline="")
+        canvas.create_rectangle(0, 0, width * percent / 100, 5, fill=ACCENT,
+                                outline="")
 
     def _draw_chart(self):
         # горизонтальные полосы: так подписи дат читаются без наклона
@@ -371,19 +490,35 @@ class MainWindow(tk.Tk):
         track_width = right - left
         if track_width < 40:
             return
+        self._bars = []
         for index, item in enumerate(data):
             y = top + index * step + step / 2
             self.chart.create_text(10, y, text=item["label"], anchor="w",
-                                   fill=MUTED, font=("Segoe UI", 8))
+                                   fill=MUTED, font=("Segoe UI", 9))
             self.chart.create_rectangle(left, y - 7, right, y + 7,
                                         fill=TRACK, outline="")
-            bar = item["sum"] / maximum * track_width
-            if bar > 0:
-                self.chart.create_rectangle(left, y - 7, left + bar, y + 7,
-                                            fill=ACCENT, outline="")
-            self.chart.create_text(right + 8, y, text=f"{item['sum']:.0f}",
+            self.chart.create_text(right + 10, y,
+                                   text=f"{item['sum']:,.0f}".replace(",", " "),
                                    anchor="w", fill=ACCENT_DARK,
-                                   font=("Segoe UI", 8))
+                                   font=("Segoe UI", 9))
+            self._bars.append((left, y, item["sum"] / maximum * track_width))
+        # полосы дорисовываются плавно, как в веб-версии
+        self._chart_token = getattr(self, "_chart_token", 0) + 1
+        self._animate_bars(self._chart_token, 0)
+
+    def _animate_bars(self, token, step):
+        """Плавно «выращивает» полосы графика после обновления."""
+        if token != getattr(self, "_chart_token", 0):
+            return
+        self.chart.delete("bar")
+        k = min(step / 14, 1)
+        k = 1 - (1 - k) ** 2
+        for x0, y, width in self._bars:
+            if width > 0:
+                self.chart.create_rectangle(x0, y - 7, x0 + width * k, y + 7,
+                                            fill=ACCENT, outline="", tags="bar")
+        if k < 1:
+            self.after(15, lambda: self._animate_bars(token, step + 1))
 
     def _update_journal(self):
         records = self.service.records(40)
@@ -450,6 +585,43 @@ class MainWindow(tk.Tk):
             messagebox.showerror("Ошибка", str(error))
             return
         messagebox.showinfo("Экспорт", f"Файл сохранён:\n{path}")
+
+    def show_help(self):
+        """Окно справки: короткая памятка по вкладкам и кнопкам."""
+        window = tk.Toplevel(self)
+        window.title("Справка")
+        window.geometry("540x460")
+        window.configure(bg=CARD)
+        window.transient(self)
+        window.resizable(False, False)
+
+        tk.Label(window, text="Как работать с трекером", bg=CARD,
+                 fg=HEADER_TEXT, font=("Segoe UI Semibold", 16)).pack(
+            anchor="w", padx=22, pady=(18, 2))
+        tk.Label(window, text="короткая памятка по вкладкам", bg=CARD,
+                 fg=MUTED, font=("Segoe UI", 9)).pack(anchor="w", padx=22)
+
+        text = (
+            "Расходы. Заполните название, категорию, сумму и дату, затем "
+            "нажмите «Записать». Сумма принимается и с запятой, и с точкой.\n\n"
+            "Поиск и фильтр. Строка поиска ищет по названию, список категорий "
+            "ограничивает выдачу. Кнопка «Сбросить» возвращает полный список.\n\n"
+            "Статистика. Сверху три карточки: сумма, число записей и средний "
+            "расход. Ниже график за семь дней и разбивка по категориям.\n\n"
+            "Журнал. Здесь видно, что и когда добавляли или удаляли. Кнопка "
+            "«Экспорт в CSV» сохраняет весь каталог в файл.\n\n"
+            "Записи лежат в базе SQLite, поэтому после закрытия окна они "
+            "остаются на месте."
+        )
+        tk.Label(window, text=text, bg=CARD, fg=INK, justify="left",
+                 wraplength=480, font=("Segoe UI", 10)).pack(
+            anchor="w", padx=22, pady=(12, 0))
+
+        tk.Button(window, text="Понятно", command=window.destroy, bg=ACCENT,
+                  fg="white", activebackground=PRIMARY_ACTIVE,
+                  activeforeground="white", relief="flat", bd=0,
+                  cursor="hand2", font=("Segoe UI Semibold", 10),
+                  padx=22, pady=8).pack(side="bottom", pady=16)
 
     def show_about(self):
         messagebox.showinfo(
