@@ -35,7 +35,7 @@ class MainWindow(tk.Tk):
         super().__init__()
         self.service = service
         self.title("Кошелёк — финансовый трекер расходов")
-        self.geometry("1180x600")
+        self.geometry("1200x660")
         self.minsize(980, 560)
         self.configure(bg=BG)
         self._build_style()
